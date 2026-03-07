@@ -1,4 +1,5 @@
 onlyBuiltDependencies:
+  - '@openrouter/sdk'
   - esbuild
   - msw
   - unrs-resolver
