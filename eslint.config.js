@@ -2,4 +2,6 @@
 
 import { tanstackConfig } from "@tanstack/eslint-config"
 
-export default [...tanstackConfig]
+import convexPlugin from "@convex-dev/eslint-plugin"
+
+export default [...tanstackConfig, ...convexPlugin.configs.recommended]
