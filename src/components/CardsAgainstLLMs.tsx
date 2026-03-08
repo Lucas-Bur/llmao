@@ -1,17 +1,5 @@
 import { useMemo, useState } from "react"
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
-import { Link } from "@tanstack/react-router"
-import { api } from "../../convex/_generated/api"
-import { AppSidebar, BlackCard, WhiteCard } from "./cah"
-import type { Id } from "../../convex/_generated/dataModel"
-import type { Side } from "@/lib/constants"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,7 +9,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -29,8 +17,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { Textarea } from "@/components/ui/textarea"
 import { getPersistentId } from "@/hooks/useLocalStorage"
+
+import { api } from "../../convex/_generated/api"
+import { AppSidebar, BlackCard, WhiteCard } from "./cah"
+
+import type { Id } from "../../convex/_generated/dataModel"
+import type { Side } from "@/lib/constants"
+
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
+import { useUniqueNameFromId } from "@/hooks/useUniqueName"
 
 export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
   const [flipped, setFlipped] = useState<Record<Side, boolean>>({
@@ -55,6 +60,8 @@ export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
   const { mutateAsync: submitUserAnswer } = useMutation({
     mutationFn: useConvexMutation(api.games.submitUserAnswer),
   })
+
+  const gameName = useUniqueNameFromId(gameId)
 
   const votes = gameData?.votes ?? []
   const myVote = votes.find(
@@ -133,7 +140,7 @@ export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>aktuelles Spiel</BreadcrumbPage>
+                  <BreadcrumbPage>{gameName}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
@@ -246,7 +253,7 @@ export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
                     </Button>
                   </CardContent>
                   <CardContent className="pt-0 text-xs text-muted-foreground">
-                    Aktiv während „responding". Die Karte wird auf Slot A oder B
+                    Aktiv während "responding". Die Karte wird auf Slot A oder B
                     gesetzt, sofern dort noch nichts liegt.
                   </CardContent>
                 </Card>
