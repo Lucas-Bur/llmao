@@ -1,8 +1,10 @@
-import { LoadingCard } from "./LoadingCard"
-import type { Side } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+
+import { LoadingCard } from "./LoadingCard"
+
+import type { Side } from "@/lib/constants"
 
 interface WhiteCardProps {
   side: Side
@@ -88,11 +90,11 @@ export function WhiteCard({
             </CardHeader>
             <CardContent className="flex flex-1">
               <p className="text-lg leading-snug font-semibold whitespace-pre-wrap text-zinc-900">
-                {text || "Keine Antwort"}
+                {text ?? "Keine Antwort"}
               </p>
             </CardContent>
             <CardContent className="mt-auto pt-0">
-              <div className="text-xs text-zinc-500">{model || "—"}</div>
+              <div className="text-xs text-zinc-500">{model ?? "—"}</div>
             </CardContent>
           </Card>
         </button>

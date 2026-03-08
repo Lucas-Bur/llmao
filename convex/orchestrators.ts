@@ -1,9 +1,8 @@
 import { v } from "convex/values"
-import { chat } from "@tanstack/ai"
-import { openRouterText } from "@tanstack/ai-openrouter"
-import { internalAction } from "./_generated/server"
+
 import { internal } from "./_generated/api"
-import { cleanResponse, withRetry } from "./utils"
+import { internalAction } from "./_generated/server"
+
 import {
   playerPrompt,
   playerSystemPrompt,
@@ -12,7 +11,13 @@ import {
   writerPrompt,
   writerSystemPrompt,
 } from "./prompts"
+import { cleanResponse, withRetry } from "./utils"
+
 import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
+
+import { chat } from "@tanstack/ai"
+import { openRouterText } from "@tanstack/ai-openrouter"
+import * as z from "zod"
 
 type ModelId = keyof OpenRouterModelOptionsByName // | (string & {})
 
@@ -33,6 +38,7 @@ async function invokeText(
         messages: [{ role: "user", content: prompt }],
         systemPrompts: [systemPrompt],
         stream: false,
+        outputSchema: z.string(),
       })
 
       return cleanResponse(result)

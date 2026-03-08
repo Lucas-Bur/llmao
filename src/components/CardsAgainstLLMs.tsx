@@ -35,6 +35,7 @@ import type { Side } from "@/lib/constants"
 import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+
 import { useUniqueNameFromId } from "@/hooks/useUniqueName"
 
 export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
@@ -134,7 +135,7 @@ export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink>
+                  <BreadcrumbLink asChild>
                     <Link to="/">Alle Spiele</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
@@ -253,7 +254,7 @@ export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
                     </Button>
                   </CardContent>
                   <CardContent className="pt-0 text-xs text-muted-foreground">
-                    Aktiv während "responding". Die Karte wird auf Slot A oder B
+                    Aktiv während responding. Die Karte wird auf Slot A oder B
                     gesetzt, sofern dort noch nichts liegt.
                   </CardContent>
                 </Card>

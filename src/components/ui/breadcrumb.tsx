@@ -1,4 +1,5 @@
 import * as React from "react"
+
 import { Slot } from "radix-ui"
 
 import { RiArrowRightSLine, RiMoreLine } from "@remixicon/react"
@@ -110,10 +111,10 @@ function BreadcrumbEllipsis({
 
 export {
   Breadcrumb,
-  BreadcrumbList,
+  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
+  BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-  BreadcrumbEllipsis,
 }

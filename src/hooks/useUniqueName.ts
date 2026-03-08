@@ -34,7 +34,7 @@ function getUniqueNameFromId(id: string | number) {
       BigInt(NOUNS.length)
   )
 
-  return `${capitalize(ADJECTIVES[adjIdx])}-${capitalize(ATTRIBUTES[attrIdx])}-${capitalize(NOUNS[nounIdx])}` as string
+  return `${capitalize(ADJECTIVES[adjIdx])}-${capitalize(ATTRIBUTES[attrIdx])}-${capitalize(NOUNS[nounIdx])}`
 }
 
 const ADJECTIVES = [

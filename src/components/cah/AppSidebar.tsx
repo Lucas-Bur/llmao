@@ -1,17 +1,20 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
-import { Link, useRouter } from "@tanstack/react-router"
+
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
-  RiArrowRightSLine,
-  RiEmotionLaughLine,
-  RiEqualizerLine,
-  RiLightbulbLine,
-  RiPlayLine,
-  RiTimeLine,
-} from "@remixicon/react"
-import { StatusBadge, statusLabel } from "./StatusBadge"
-import type { Doc, Id } from "convex/_generated/dataModel"
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Sidebar,
   SidebarContent,
@@ -25,24 +28,25 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { MODEL_LOOKUP_NAMES, MODEL_OPTIONS } from "@/lib/constants"
 import { useLocalStorageState } from "@/hooks/useLocalStorage"
+import { MODEL_LOOKUP_NAMES, MODEL_OPTIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+
+import { StatusBadge, statusLabel } from "./StatusBadge"
+
+import type { Doc, Id } from "convex/_generated/dataModel"
+
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import {
+  RiArrowRightSLine,
+  RiEmotionLaughLine,
+  RiEqualizerLine,
+  RiLightbulbLine,
+  RiPlayLine,
+  RiTimeLine,
+} from "@remixicon/react"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { Link, useRouter } from "@tanstack/react-router"
 
 export function AppSidebar({ gameId }: { gameId: Id<"games"> }) {
   const router = useRouter()

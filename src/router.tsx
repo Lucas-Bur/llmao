@@ -1,12 +1,14 @@
-import { createRouter } from "@tanstack/react-router"
-import { QueryClient } from "@tanstack/react-query"
-import { routerWithQueryClient } from "@tanstack/react-router-with-query"
-import { ConvexQueryClient } from "@convex-dev/react-query"
 import { ConvexProvider } from "convex/react"
+
 import { routeTree } from "./routeTree.gen"
 
+import { ConvexQueryClient } from "@convex-dev/react-query"
+import { QueryClient } from "@tanstack/react-query"
+import { createRouter } from "@tanstack/react-router"
+import { routerWithQueryClient } from "@tanstack/react-router-with-query"
+
 export function getRouter() {
-  const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!
+  const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string
   if (!CONVEX_URL) {
     console.error("missing envar VITE_CONVEX_URL")
   }

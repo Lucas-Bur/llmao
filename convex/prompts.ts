@@ -1,5 +1,6 @@
-import { shuffle } from "./utils"
 import { ALL_PROMPTS } from "./data/prompts"
+
+import { shuffle } from "./utils"
 
 export const writerSystemPrompt = () => {
   const examples = shuffle([...ALL_PROMPTS]).slice(0, 80)

@@ -1,8 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
-import type { Id } from "convex/_generated/dataModel"
+
 import { CardsAgainstLLMs } from "@/components/CardsAgainstLLMs"
+
+import type { Id } from "convex/_generated/dataModel"
+
+import { convexQuery } from "@convex-dev/react-query"
+import { createFileRoute } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/games/$gameId")({
   loader: async ({ context, params }) => {

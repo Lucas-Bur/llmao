@@ -24,7 +24,7 @@ export function BlackCard({ text, loading }: BlackCardProps) {
       </CardHeader>
       <CardContent className="flex flex-1 items-center">
         <p className="text-xl leading-snug font-semibold whitespace-pre-wrap">
-          {text || "Noch kein Prompt vorhanden."}
+          {text ?? "Noch kein Prompt vorhanden."}
         </p>
       </CardContent>
       <CardContent className="mt-auto pt-0">
