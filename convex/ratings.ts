@@ -25,7 +25,7 @@ export async function getOrCreateRating(ctx: MutationCtx, model: string) {
     updatedAt: Date.now(),
   })
 
-  const created = await ctx.db.get(id)
+  const created = await ctx.db.get("ratings", id)
   if (!created) {
     throw new Error("Failed to create rating")
   }
@@ -52,7 +52,7 @@ export async function applyEloResult(
   const nextB = Math.round(ratingB.elo + K * (actualB - expectedB))
   const now = Date.now()
 
-  await ctx.db.patch(ratingA._id, {
+  await ctx.db.patch("ratings", ratingA._id, {
     elo: nextA,
     wins: ratingA.wins + (winner === "A" ? 1 : 0),
     losses: ratingA.losses + (winner === "B" ? 1 : 0),
@@ -61,7 +61,7 @@ export async function applyEloResult(
     updatedAt: now,
   })
 
-  await ctx.db.patch(ratingB._id, {
+  await ctx.db.patch("ratings", ratingB._id, {
     elo: nextB,
     wins: ratingB.wins + (winner === "B" ? 1 : 0),
     losses: ratingB.losses + (winner === "A" ? 1 : 0),

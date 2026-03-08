@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
 import { useConvexMutation } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
+import { Button } from "@/components/ui/button"
 
 export const Route = createFileRoute("/")({ component: App })
 
@@ -17,7 +17,7 @@ function App() {
           <p>You may now add components and start building.</p>
           <p>We've already added the button component for you.</p>
 
-          <Button
+          {/* <Button
             className="mt-2"
             onClick={async () => {
               const gameId = await startGame({
@@ -29,7 +29,7 @@ function App() {
             }}
           >
             Create Game
-          </Button>
+          </Button> */}
         </div>
       </div>
     </div>

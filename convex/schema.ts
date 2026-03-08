@@ -12,10 +12,13 @@ const gameStatus = v.union(
 
 const side = v.union(v.literal("A"), v.literal("B"))
 const winner = v.union(v.literal("A"), v.literal("B"), v.literal("draw"))
+const mode = v.union(v.literal("auto"), v.literal("manual"))
 
 export default defineSchema({
   games: defineTable({
     status: gameStatus,
+    mode,
+    voterModels: v.array(v.string()),
 
     promptModel: v.string(),
     answerModelA: v.string(),

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as data_prompts from "../data/prompts.js";
 import type * as games from "../games.js";
 import type * as orchestrators from "../orchestrators.js";
 import type * as prompts from "../prompts.js";
@@ -21,6 +22,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "data/prompts": typeof data_prompts;
   games: typeof games;
   orchestrators: typeof orchestrators;
   prompts: typeof prompts;

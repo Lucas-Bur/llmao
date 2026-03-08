@@ -13,12 +13,16 @@ export const createGame = mutation({
     promptModel: v.string(),
     answerModelA: v.string(),
     answerModelB: v.string(),
+    mode: v.union(v.literal("auto"), v.literal("manual")),
+    voterModels: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now()
 
     const gameId = await ctx.db.insert("games", {
       status: "created",
+      mode: args.mode,
+      voterModels: args.voterModels,
       promptModel: args.promptModel,
       answerModelA: args.answerModelA,
       answerModelB: args.answerModelB,
@@ -26,11 +30,69 @@ export const createGame = mutation({
       updatedAt: now,
     })
 
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
-      gameId,
-    })
+    if (args.mode === "auto") {
+      await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
+        gameId,
+      })
+    }
 
     return gameId
+  },
+})
+
+export const submitUserAnswer = mutation({
+  args: {
+    gameId: v.id("games"),
+    authorId: v.string(),
+    side: v.union(v.literal("A"), v.literal("B")),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.status !== "responding") {
+      throw new Error("Game is not in responding state")
+    }
+
+    const existing = await ctx.db
+      .query("answers")
+      .withIndex("by_gameId_side", (q) =>
+        q.eq("gameId", args.gameId).eq("side", args.side)
+      )
+      .unique()
+
+    if (existing) {
+      throw new Error("Side already filled")
+    }
+
+    const answerId = await ctx.db.insert("answers", {
+      gameId: args.gameId,
+      side: args.side,
+      model: `user:${args.authorId}`,
+      text: args.text.trim(),
+      locked: true,
+      createdAt: Date.now(),
+    })
+
+    const answerA = args.side === "A" ? answerId : game.answerIdA
+    const answerB = args.side === "B" ? answerId : game.answerIdB
+
+    await ctx.db.patch("games", args.gameId, {
+      answerIdA: answerA,
+      answerIdB: answerB,
+      status: answerA && answerB ? "voting" : game.status,
+      updatedAt: Date.now(),
+    })
+
+    if (game.mode === "auto" && answerA && answerB) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.orchestrators.generateModelVotes,
+        { gameId: args.gameId }
+      )
+    }
+
+    return { ok: true }
   },
 })
 
@@ -41,7 +103,7 @@ export const submitUserVote = mutation({
     choice: v.union(v.literal("A"), v.literal("B")),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error("Game not found")
     }
@@ -69,9 +131,11 @@ export const submitUserVote = mutation({
       createdAt: Date.now(),
     })
 
-    await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
-      gameId: args.gameId,
-    })
+    if (game.mode === "auto") {
+      await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
+        gameId: args.gameId,
+      })
+    }
 
     return { ok: true }
   },
@@ -82,14 +146,20 @@ export const getGame = query({
     gameId: v.id("games"),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
 
-    const prompt = game.promptId ? await ctx.db.get(game.promptId) : null
-    const answerA = game.answerIdA ? await ctx.db.get(game.answerIdA) : null
-    const answerB = game.answerIdB ? await ctx.db.get(game.answerIdB) : null
+    const prompt = game.promptId
+      ? await ctx.db.get("prompts", game.promptId)
+      : null
+    const answerA = game.answerIdA
+      ? await ctx.db.get("answers", game.answerIdA)
+      : null
+    const answerB = game.answerIdB
+      ? await ctx.db.get("answers", game.answerIdB)
+      : null
 
     const votes = await ctx.db
       .query("votes")
@@ -125,6 +195,46 @@ export const leaderboard = query({
   },
 })
 
+export const triggerGeneratePrompt = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
+      gameId: args.gameId,
+    })
+    return { ok: true }
+  },
+})
+
+export const triggerGenerateAnswers = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
+      gameId: args.gameId,
+    })
+    return { ok: true }
+  },
+})
+
+export const triggerGenerateModelVotes = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
+      gameId: args.gameId,
+    })
+    return { ok: true }
+  },
+})
+
+export const triggerFinalizeGame = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
+      gameId: args.gameId,
+    })
+    return { ok: true }
+  },
+})
+
 export const savePromptResult = internalMutation({
   args: {
     gameId: v.id("games"),
@@ -134,7 +244,7 @@ export const savePromptResult = internalMutation({
     rawResponse: v.string(),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error("Game not found")
     }
@@ -162,15 +272,17 @@ export const savePromptResult = internalMutation({
       createdAt: Date.now(),
     })
 
-    await ctx.db.patch(args.gameId, {
+    await ctx.db.patch("games", args.gameId, {
       status: "responding",
       promptId,
       updatedAt: Date.now(),
     })
 
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
-      gameId: args.gameId,
-    })
+    if (game.mode === "auto") {
+      await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
+        gameId: args.gameId,
+      })
+    }
   },
 })
 
@@ -207,7 +319,7 @@ export const saveAnswerResult = internalMutation({
     rawResponse: v.string(),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error("Game not found")
     }
@@ -247,19 +359,19 @@ export const saveAnswerResult = internalMutation({
       createdAt: Date.now(),
     })
 
-    const answerA = args.side === "A" ? answerId : (game.answerIdA ?? undefined)
-    const answerB = args.side === "B" ? answerId : (game.answerIdB ?? undefined)
+    const answerA = args.side === "A" ? answerId : game.answerIdA
+    const answerB = args.side === "B" ? answerId : game.answerIdB
 
     const nextStatus = answerA && answerB ? "voting" : game.status
 
-    await ctx.db.patch(args.gameId, {
+    await ctx.db.patch("games", args.gameId, {
       answerIdA: answerA,
       answerIdB: answerB,
       status: nextStatus,
       updatedAt: Date.now(),
     })
 
-    if (answerA && answerB) {
+    if (game.mode === "auto" && answerA && answerB) {
       await ctx.scheduler.runAfter(
         0,
         internal.orchestrators.generateModelVotes,
@@ -366,7 +478,7 @@ export const finalizeResolvedGame = internalMutation({
     gameId: v.id("games"),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error("Game not found")
     }
@@ -383,12 +495,12 @@ export const finalizeResolvedGame = internalMutation({
       return
     }
 
-    const scoreA = votes.filter((v) => v.choice === "A").length
-    const scoreB = votes.filter((v) => v.choice === "B").length
+    const scoreA = votes.filter((vote) => vote.choice === "A").length
+    const scoreB = votes.filter((vote) => vote.choice === "B").length
 
     const winner = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "draw"
 
-    await ctx.db.patch(args.gameId, {
+    await ctx.db.patch("games", args.gameId, {
       status: "resolved",
       winner,
       scoreA,
@@ -399,7 +511,7 @@ export const finalizeResolvedGame = internalMutation({
 
     await applyEloResult(ctx, game.answerModelA, game.answerModelB, winner)
 
-    await ctx.db.patch(args.gameId, {
+    await ctx.db.patch("games", args.gameId, {
       status: "locked",
       lockedAt: Date.now(),
       updatedAt: Date.now(),
@@ -412,14 +524,20 @@ export const getGameInternal = internalQuery({
     gameId: v.id("games"),
   },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get(args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
 
-    const prompt = game.promptId ? await ctx.db.get(game.promptId) : null
-    const answerA = game.answerIdA ? await ctx.db.get(game.answerIdA) : null
-    const answerB = game.answerIdB ? await ctx.db.get(game.answerIdB) : null
+    const prompt = game.promptId
+      ? await ctx.db.get("prompts", game.promptId)
+      : null
+    const answerA = game.answerIdA
+      ? await ctx.db.get("answers", game.answerIdA)
+      : null
+    const answerB = game.answerIdB
+      ? await ctx.db.get("answers", game.answerIdB)
+      : null
 
     const votes = await ctx.db
       .query("votes")

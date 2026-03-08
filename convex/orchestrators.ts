@@ -1,11 +1,8 @@
 import { v } from "convex/values"
+import { chat } from "@tanstack/ai"
+import { openRouterText } from "@tanstack/ai-openrouter"
 import { internalAction } from "./_generated/server"
 import { internal } from "./_generated/api"
-import { chat } from "@tanstack/ai"
-import {
-  openRouterText,
-  type OpenRouterModelOptionsByName,
-} from "@tanstack/ai-openrouter"
 import { cleanResponse, withRetry } from "./utils"
 import {
   playerPrompt,
@@ -15,6 +12,7 @@ import {
   writerPrompt,
   writerSystemPrompt,
 } from "./prompts"
+import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
 
 type ModelId = keyof OpenRouterModelOptionsByName // | (string & {})
 
@@ -169,11 +167,7 @@ export const generateModelVotes = internalAction({
       return
     }
 
-    const voterModels = [
-      "openai/gpt-5-nano",
-      "xiaomi/mimo-v2-flash",
-      "google/gemini-2.5-flash-lite-preview-09-2025",
-    ]
+    const voterModels = data.game.voterModels
 
     const promptText = votePrompt(
       data.prompt.text,
