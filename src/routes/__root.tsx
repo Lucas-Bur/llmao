@@ -7,6 +7,8 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
 import { TanStackDevtools } from "@tanstack/react-devtools"
 import appCss from "../styles.css?url"
 import type { QueryClient } from "@tanstack/react-query"
+import AiDevtools from "@/lib/ai-devtools"
+import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools"
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -50,6 +52,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             {
               name: "Tanstack Router",
               render: <TanStackRouterDevtoolsPanel />,
+            },
+            AiDevtools,
+            {
+              name: "TanStack Query",
+              render: <ReactQueryDevtoolsPanel />,
             },
           ]}
         />
