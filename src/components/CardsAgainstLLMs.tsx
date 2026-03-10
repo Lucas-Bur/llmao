@@ -1,301 +1,344 @@
 import { useMemo, useState } from "react"
 
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Textarea } from "@/components/ui/textarea"
-import { getPersistentId } from "@/hooks/useLocalStorage"
+import { ChevronRight, Smile } from "lucide-react"
 
-import { api } from "../../convex/_generated/api"
-import { AppSidebar, BlackCard, WhiteCard } from "./cah"
+import type { Game } from "./cah/types"
+import { Link, useRouter } from "@tanstack/react-router"
 
-import type { Id } from "../../convex/_generated/dataModel"
-import type { Side } from "@/lib/constants"
-
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { SubmitCardModal } from "./cah/SubmitCardModel"
+import { ActionFooter } from "./cah/ActionFooter"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { api } from "convex/_generated/api"
 
+import type { Id } from "convex/_generated/dataModel"
+import { BlackCard } from "./cah/BlackCard"
+import { WhiteCard } from "./cah/WhiteCard"
+import { SidePanel } from "./cah/SidePanel"
 import { useUniqueNameFromId } from "@/hooks/useUniqueName"
+import { lookupModelName } from "@/constants/models"
 
-export function CardsAgainstLLMs({ gameId }: { gameId: string }) {
-  const [flipped, setFlipped] = useState<Record<Side, boolean>>({
-    A: false,
-    B: false,
-  })
-  const [userCardText, setUserCardText] = useState("")
-  const [userCardSide, setUserCardSide] = useState<Side>("A")
+const userId = "user:current"
 
-  const voterId = useMemo(() => getPersistentId("cah-voter-id"), [])
-  const authorId = useMemo(() => getPersistentId("cah-author-id"), [])
+export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
+  const router = useRouter()
 
-  const { data: gameData } = useSuspenseQuery(
-    convexQuery(api.games.getGame, {
-      gameId: gameId as Id<"games">,
-    })
+  // Queries
+  const { data: gameObject } = useSuspenseQuery(
+    convexQuery(api.games.getGame, { gameId })
   )
 
-  const { mutateAsync: submitUserVote } = useMutation({
-    mutationFn: useConvexMutation(api.games.submitUserVote),
-  })
-  const { mutateAsync: submitUserAnswer } = useMutation({
+  // Mutations
+  const { mutateAsync: submitUserAnswerMutation } = useMutation({
     mutationFn: useConvexMutation(api.games.submitUserAnswer),
   })
+  const { mutateAsync: submitUserVoteMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.submitUserVote),
+  })
+  const { mutateAsync: advanceToVotingMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.advanceToVoting),
+  })
+  const { mutateAsync: triggerGeneratePromptMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.triggerGeneratePrompt),
+  })
+  const { mutateAsync: triggerGenerateModelVotesMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.triggerGenerateModelVotes),
+  })
+  const { mutateAsync: triggerFinalizeGameMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.triggerFinalizeGame),
+  })
+  const { mutateAsync: createGameMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.createGame),
+  })
 
-  const gameName = useUniqueNameFromId(gameId)
+  // Game state
+  const game = gameObject!.game
+  const gameStatus = game.status
+  const prompt = gameObject!.prompt
+  const allAnswers = gameObject!.answers
+  const votes = gameObject!.votes
 
-  const votes = gameData?.votes ?? []
-  const myVote = votes.find(
-    (vote) => vote.voterKind === "user" && vote.voterId === voterId
-  )
+  // const userAnswer = allAnswers.find((a) => a.model === userId)
 
-  const scoreA =
-    gameData?.game.scoreA ??
-    votes.filter((vote) => vote.choice === "A").length ??
-    0
-  const scoreB =
-    gameData?.game.scoreB ??
-    votes.filter((vote) => vote.choice === "B").length ??
-    0
+  const whiteCardCount = allAnswers.length
 
-  const canVote = gameData?.game.status === "voting" && !myVote
-  const canSubmitUserCard =
-    gameData?.game.status === "responding" &&
-    !!userCardText.trim() &&
-    !(
-      (userCardSide === "A" && gameData.answerA) ||
-      (userCardSide === "B" && gameData.answerB)
-    )
+  const [hasUserVoted, setHasUserVoted] = useState(false)
+  const [hasUserSubmittedCard, setHasUserSubmittedCard] = useState(false)
 
-  const promptLoading =
-    !gameData?.prompt &&
-    (gameData?.game.status === "created" ||
-      gameData?.game.status === "prompting")
+  // UI state
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
 
-  const answerALoading =
-    !gameData?.answerA &&
-    (gameData?.game.status === "created" ||
-      gameData?.game.status === "prompting" ||
-      gameData?.game.status === "responding")
+  // Computed values
+  const allCardsFlipped = useMemo(() => {
+    return allAnswers.length > 0 && allAnswers.every((a) => flippedCards[a._id])
+  }, [allAnswers, flippedCards])
 
-  const answerBLoading =
-    !gameData?.answerB &&
-    (gameData?.game.status === "created" ||
-      gameData?.game.status === "prompting" ||
-      gameData?.game.status === "responding")
+  // Get vote counts per answer
+  const voteCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    const voterNames: Record<string, Array<string>> = {}
 
-  async function handleVote(choice: Side) {
-    if (!gameId || !canVote) return
-    await submitUserVote({
-      gameId: gameId as Id<"games">,
-      voterId,
-      choice,
+    for (const answer of allAnswers) {
+      counts[answer._id] = 0
+      voterNames[answer._id] = []
+    }
+
+    for (const vote of votes) {
+      counts[vote.answerId] = (counts[vote.answerId] || 0) + 1
+      const voterModel = vote.voterId.replace("model:", "")
+      voterNames[vote.answerId].push(voterModel)
+    }
+
+    return { counts, voterNames }
+  }, [allAnswers, votes])
+
+  // Handlers
+  const handleFlipCard = (answerId: string) => {
+    setFlippedCards((prev) => ({ ...prev, [answerId]: true }))
+  }
+
+  const handleSelectCard = (answerId: string) => {
+    if (!allCardsFlipped || hasUserVoted || gameStatus !== "voting") return
+    setSelectedCardId((prev) => (prev === answerId ? null : answerId))
+  }
+
+  const handleVote = async () => {
+    if (!selectedCardId || !allCardsFlipped) return
+    await submitUserVoteMutation({
+      answerId: selectedCardId as Id<"answers">,
+      gameId,
+      voterId: userId,
+    })
+    setHasUserVoted(true)
+  }
+
+  const handleSubmitCard = async (text: string) => {
+    await submitUserAnswerMutation({
+      gameId,
+      text,
+      authorId: userId,
+    })
+    setHasUserSubmittedCard(true)
+  }
+
+  const handleAdvanceState = async () => {
+    switch (gameStatus) {
+      case "created":
+        // Start prompting
+        await triggerGeneratePromptMutation({ gameId })
+        break
+
+      case "responding":
+        // Move to voting
+        // await triggerGenerateAnswersMutation({ gameId }) // wurde ausgelagert
+        await advanceToVotingMutation({ gameId })
+        break
+
+      case "voting":
+        // Resolve game
+
+        await triggerGenerateModelVotesMutation({ gameId }) // das ist nocht ganz sauber, weil eigentlich der use nicht voten muss und man warten muss, bis alle modelle gevoted haben
+        await triggerFinalizeGameMutation({ gameId })
+        break
+
+      case "resolved":
+        // Lock game
+        // await triggerFinalizeGameMutation({ gameId })
+        break
+    }
+  }
+
+  const handleNewGame = async () => {
+    const newGameId = await createGameMutation({
+      playerModels: [],
+      promptModel: "google/gemini-2.5-flash-lite-preview-09-2025",
+      voterModels: [],
+    })
+    await router.navigate({
+      to: "/games/$gameId",
+      params: { gameId: newGameId },
     })
   }
 
-  async function handleSubmitUserCard() {
-    if (!gameId || !canSubmitUserCard) return
-    await submitUserAnswer({
-      gameId: gameId as Id<"games">,
-      authorId,
-      side: userCardSide,
-      text: userCardText.trim(),
-    })
-    setUserCardText("")
-  }
+  // Can submit card only during responding phase
+  const canSubmitCard = gameStatus === "responding" && !hasUserSubmittedCard
 
   return (
-    <SidebarProvider>
-      <AppSidebar gameId={gameId as Id<"games">} />
-      <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-1" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink asChild>
-                    <Link to="/">Alle Spiele</Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{gameName}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b bg-background">
+        <div className="flex h-14 items-center px-4">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center border">
+                <Smile className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-semibold">LLMAO</span>
+            </Link>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <Link
+              to="/"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Alle Spiele
+            </Link>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">{useUniqueNameFromId(gameId)}</span>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          {!gameData ? (
-            <Card className="border-dashed border-zinc-800 bg-zinc-900/40">
-              <CardContent className="p-10 text-center text-muted-foreground">
-                Starte in der Sidebar ein neues Spiel oder wähle ein bestehendes
-                aus.
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="grid gap-6 lg:grid-cols-3 lg:items-center">
-                <WhiteCard
-                  side="A"
-                  text={gameData.answerA?.text}
-                  model={gameData.answerA?.model}
-                  loading={answerALoading}
-                  flipped={flipped.A}
-                  selected={myVote?.choice === "A"}
-                  disabled={!canVote}
-                  score={
-                    gameData.game.status === "resolved" ||
-                    gameData.game.status === "locked"
-                      ? scoreA
-                      : undefined
-                  }
-                  onFlip={() =>
-                    setFlipped((prev) => ({
-                      ...prev,
-                      A: !prev.A,
-                    }))
-                  }
-                  onVote={
-                    gameData.game.status === "voting"
-                      ? () => handleVote("A")
-                      : undefined
-                  }
-                />
+      {/* Main Content - with space for sidebar and footer */}
+      <main className="pr-72 pb-20">
+        <div className="p-6">
+          {/* Black Card */}
+          <div className="mb-6">
+            <BlackCard
+              text={prompt?.text}
+              model={prompt?.model}
+              isLoading={gameStatus === "prompting"}
+              showModel={gameStatus !== "created"}
+            />
+          </div>
 
-                <BlackCard
-                  text={gameData.prompt?.text}
-                  loading={promptLoading}
-                />
+          {/* Status message when no cards yet */}
+          {gameStatus === "created" && (
+            <div className="flex h-56 items-center justify-center border border-dashed">
+              <p className="text-sm text-muted-foreground">
+                Klicke auf Prompt generieren um zu starten
+              </p>
+            </div>
+          )}
 
-                <WhiteCard
-                  side="B"
-                  text={gameData.answerB?.text}
-                  model={gameData.answerB?.model}
-                  loading={answerBLoading}
-                  flipped={flipped.B}
-                  selected={myVote?.choice === "B"}
-                  disabled={!canVote}
-                  score={
-                    gameData.game.status === "resolved" ||
-                    gameData.game.status === "locked"
-                      ? scoreB
-                      : undefined
-                  }
-                  onFlip={() =>
-                    setFlipped((prev) => ({
-                      ...prev,
-                      B: !prev.B,
-                    }))
-                  }
-                  onVote={
-                    gameData.game.status === "voting"
-                      ? () => handleVote("B")
-                      : undefined
-                  }
-                />
-              </div>
+          {gameStatus === "prompting" && (
+            <div className="flex h-56 items-center justify-center border border-dashed">
+              <p className="text-sm text-muted-foreground">
+                Prompt wird generiert...
+              </p>
+            </div>
+          )}
 
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <Card className="bg-muted">
-                  <CardHeader className="text-sm font-semibold">
-                    Eigene weiße Karte hinzufügen
-                  </CardHeader>
-                  <CardContent className="grid gap-3 md:grid-cols-[8rem_minmax(0,1fr)_10rem]">
-                    <Select
-                      value={userCardSide}
-                      onValueChange={(value) => setUserCardSide(value as Side)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="A">Links / A</SelectItem>
-                        <SelectItem value="B">Rechts / B</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Textarea
-                      value={userCardText}
-                      onChange={(e) => setUserCardText(e.target.value)}
-                      rows={3}
-                      placeholder="Deine eigene weiße Karte ..."
+          {/* White Cards Grid */}
+          {(gameStatus === "responding" ||
+            gameStatus === "voting" ||
+            gameStatus === "resolved" ||
+            gameStatus === "locked") && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {allAnswers.length === 0
+                ? // Loading placeholders
+                  Array.from({ length: whiteCardCount }).map((_, i) => (
+                    <WhiteCard
+                      key={`loading-${i}`}
+                      id={`loading-${i}`}
+                      text=""
+                      model=""
+                      isFlipped={false}
+                      isSelected={false}
+                      isLoading
+                      hasVoted={false}
+                      canSelect={false}
+                      onFlip={() => {}}
+                      onSelect={() => {}}
                     />
+                  ))
+                : allAnswers.map((answer) => (
+                    <WhiteCard
+                      key={answer._id}
+                      id={answer._id}
+                      text={answer.text}
+                      model={
+                        answer.model === userId
+                          ? "Du"
+                          : lookupModelName(answer.model)
+                      }
+                      isFlipped={flippedCards[answer._id] || false}
+                      isSelected={selectedCardId === answer._id}
+                      isLoading={false}
+                      voteCount={voteCounts.counts[answer._id]}
+                      voterNames={voteCounts.voterNames[answer._id]}
+                      hasVoted={hasUserVoted}
+                      canSelect={
+                        allCardsFlipped &&
+                        gameStatus === "voting" &&
+                        !hasUserVoted
+                      }
+                      onFlip={() => handleFlipCard(answer._id)}
+                      onSelect={() => handleSelectCard(answer._id)}
+                    />
+                  ))}
+            </div>
+          )}
 
-                    <Button
-                      onClick={handleSubmitUserCard}
-                      disabled={!canSubmitUserCard}
-                      variant={canSubmitUserCard ? "default" : "outline"}
-                    >
-                      Einfügen
-                    </Button>
-                  </CardContent>
-                  <CardContent className="pt-0 text-xs text-muted-foreground">
-                    Aktiv während responding. Die Karte wird auf Slot A oder B
-                    gesetzt, sofern dort noch nichts liegt.
-                  </CardContent>
-                </Card>
+          {/* Voting hint */}
+          {gameStatus === "voting" && !hasUserVoted && (
+            <div className="mt-6 text-center">
+              {!allCardsFlipped ? (
+                <p className="text-sm text-muted-foreground">
+                  Decke alle Karten auf, um abstimmen zu können
+                </p>
+              ) : !selectedCardId ? (
+                <p className="text-sm text-muted-foreground">
+                  Wähle eine Karte aus, um abzustimmen
+                </p>
+              ) : (
+                <p className="text-sm text-foreground">
+                  Karte ausgewählt - klicke auf Abstimmen
+                </p>
+              )}
+            </div>
+          )}
 
-                <Card className="bg-muted">
-                  <CardHeader className="text-sm font-semibold">
-                    Live-Zustand
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    <div>
-                      Schwarze Karte:{" "}
-                      {promptLoading
-                        ? "lädt"
-                        : gameData.prompt
-                          ? "bereit"
-                          : "leer"}
-                    </div>
-                    <div>
-                      Weiße Karte A:{" "}
-                      {answerALoading
-                        ? "lädt"
-                        : gameData.answerA
-                          ? "bereit"
-                          : "leer"}
-                    </div>
-                    <div>
-                      Weiße Karte B:{" "}
-                      {answerBLoading
-                        ? "lädt"
-                        : gameData.answerB
-                          ? "bereit"
-                          : "leer"}
-                    </div>
-                    <div>User-Vote: {myVote?.choice ?? "noch keiner"}</div>
-                  </CardContent>
-                </Card>
-              </div>
-            </>
+          {/* Results message */}
+          {(gameStatus === "resolved" || gameStatus === "locked") && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Spiel beendet - ELO-Änderungen wurden berechnet
+              </p>
+            </div>
           )}
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+
+      {/* Side Panel */}
+      <SidePanel
+        // gameStatus={gameStatus}
+        // answers={allAnswers}
+        // votes={votes}
+        // ratings={mockRatings}
+        // eloChanges={
+        //   gameStatus === "resolved" || gameStatus === "locked"
+        //     ? mockEloChanges
+        //     : undefined
+        // }
+        // config={config}
+        // onConfigChange={setConfig}
+        gameId={gameId as Id<"games">}
+      />
+
+      {/* Submit Card Modal */}
+      <SubmitCardModal
+        isOpen={isSubmitModalOpen}
+        onClose={() => setIsSubmitModalOpen(false)}
+        onSubmit={handleSubmitCard}
+        promptText={prompt?.text ?? ""}
+      />
+
+      {/* Action Footer */}
+      <ActionFooter
+        gameId={gameId}
+        gameStatus={gameStatus}
+        selectedCardId={selectedCardId}
+        allCardsFlipped={allCardsFlipped}
+        hasUserVoted={hasUserVoted}
+        hasUserSubmittedCard={hasUserSubmittedCard}
+        canSubmitCard={canSubmitCard}
+        onSubmitCard={() => setIsSubmitModalOpen(true)}
+        onVote={handleVote}
+        onAdvanceState={handleAdvanceState}
+        onNewGame={handleNewGame}
+      />
+    </div>
   )
 }

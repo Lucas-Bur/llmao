@@ -1,5 +1,4 @@
 import { ALL_PROMPTS } from "./data/prompts"
-
 import { shuffle } from "./utils"
 
 export const writerSystemPrompt = () => {
@@ -22,8 +21,11 @@ export const playerSystemPrompt = () =>
 export const playerPrompt = (prompt: string) =>
   `Fill in the blank: ${prompt}` as const
 
-export const voteSystemPrompt = () =>
-  'You are a judge in a comedy game. You\'ll see a fill-in-the-blank prompt and two answers. Pick which answer is FUNNIER. You MUST respond with exactly "A" or "B" — nothing else.' as const
+export const voteSystemPrompt = (answerCount: number) =>
+  `You are a judge in a comedy game. You'll see a prompt and ${answerCount} answers. Pick which answer is FUNNIEST. You MUST respond with exactly the number of your choice — nothing else.` as const
 
-export const votePrompt = (prompt: string, answerA: string, answerB: string) =>
-  `Prompt: "${prompt}"\n\nAnswer A: "${answerA}"\nAnswer B: "${answerB}"\n\nWhich is funnier? Reply with just "A" or "B".` as const
+export const votePrompt = (
+  prompt: string,
+  answers: Array<{ label: string; text: string }>
+) =>
+  `Prompt: "${prompt}"\n\n${answers.map((a) => `${a.label}: "${a.text}"`).join("\n")}\n\nWhich is funniest? Reply with just the number.` as const

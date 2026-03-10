@@ -1,120 +1,145 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { lookupModelName } from "@/constants/models"
 import { cn } from "@/lib/utils"
 
-import { LoadingCard } from "./LoadingCard"
-
-import type { Side } from "@/lib/constants"
-
 interface WhiteCardProps {
-  side: Side
-  text?: string | null
-  model?: string | null
-  loading: boolean
-  flipped: boolean
-  selected: boolean
-  disabled?: boolean
-  score?: number
+  id: string
+  text: string
+  model: string
+  isFlipped: boolean
+  isSelected: boolean
+  isLoading?: boolean
+  voteCount?: number
+  voterNames?: Array<string>
+  hasVoted: boolean
+  canSelect: boolean
   onFlip: () => void
-  onVote?: () => void
+  onSelect: () => void
 }
 
 export function WhiteCard({
-  side,
   text,
   model,
-  loading,
-  flipped,
-  selected,
-  disabled,
-  score,
+  isFlipped,
+  isSelected,
+  isLoading,
+  voteCount,
+  voterNames,
+  hasVoted,
+  canSelect,
   onFlip,
-  onVote,
+  onSelect,
 }: WhiteCardProps) {
-  if (loading) {
+  if (isLoading) {
     return (
-      <LoadingCard
-        tone="white"
-        title={`Antwort ${side} wird generiert`}
-        subtitle="Die weiße Karte ist noch verdeckt."
-      />
+      <Card className="flex h-56 w-full flex-col rounded-none border-border bg-background">
+        <CardContent className="flex flex-1 flex-col justify-center gap-2 p-5">
+          <Skeleton className="h-4 w-full rounded-none" />
+          <Skeleton className="h-4 w-3/4 rounded-none" />
+          <Skeleton className="h-4 w-1/2 rounded-none" />
+        </CardContent>
+        <CardFooter className="p-5 pt-0">
+          <span className="text-xs text-muted-foreground">
+            Wird generiert...
+          </span>
+        </CardFooter>
+      </Card>
     )
   }
 
+  // 3D Flip card container
   return (
-    <div className="w-full">
-      <div className="h-88 perspective-distant">
+    <div
+      className="perspective-1000 h-56 w-full"
+      style={{ perspective: "1000px" }}
+    >
+      <div
+        className={cn(
+          "relative h-full w-full transition-transform duration-500",
+          isFlipped && "transform-[rotateY(180deg)]"
+        )}
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Card Back (not flipped) */}
         <button
           type="button"
           onClick={onFlip}
+          disabled={isFlipped}
           className={cn(
-            "relative h-full w-full rounded-3xl text-left transition-transform duration-500 transform-3d",
-            flipped && "transform-[rotateY(180deg)]"
+            "absolute inset-0 h-full w-full text-left backface-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            isFlipped && "pointer-events-none"
           )}
         >
-          {/* Front - Hidden */}
-          <Card className="absolute inset-0 flex flex-col border-zinc-200 bg-white shadow-lg backface-hidden">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <span className="text-xs tracking-[0.2em] text-zinc-500 uppercase">
-                White Card {side}
+          <Card className="flex h-full w-full flex-col rounded-none border-border bg-muted transition-colors hover:border-foreground/50">
+            <CardContent className="flex flex-1 flex-col items-center justify-center p-5">
+              <span className="text-sm font-medium text-foreground">
+                Klicken zum Aufdecken
               </span>
-              {typeof score === "number" ? (
-                <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-600">
-                  {score} Votes
-                </span>
-              ) : null}
-            </CardHeader>
-            <CardContent className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <div className="text-lg font-semibold text-zinc-900">
-                  Tippen zum Umdrehen
-                </div>
-                <div className="mt-2 text-sm text-zinc-500">
-                  Karte {side} ansehen
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Back - Visible when flipped */}
-          <Card className="absolute inset-0 flex transform-[rotateY(180deg)] flex-col border-zinc-200 bg-white shadow-lg backface-hidden">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <span className="text-xs tracking-[0.2em] text-zinc-500 uppercase">
-                White Card {side}
-              </span>
-              {typeof score === "number" ? (
-                <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-600">
-                  {score} Votes
-                </span>
-              ) : null}
-            </CardHeader>
-            <CardContent className="flex flex-1">
-              <p className="text-lg leading-snug font-semibold whitespace-pre-wrap text-zinc-900">
-                {text ?? "Keine Antwort"}
-              </p>
-            </CardContent>
-            <CardContent className="mt-auto pt-0">
-              <div className="text-xs text-zinc-500">{model ?? "—"}</div>
             </CardContent>
           </Card>
         </button>
-      </div>
 
-      {onVote ? (
-        <Button
-          onClick={onVote}
-          disabled={disabled}
-          variant={selected ? "default" : "secondary"}
+        {/* Card Front (flipped) */}
+        <button
+          type="button"
+          onClick={canSelect ? onSelect : undefined}
+          disabled={!canSelect || !isFlipped}
           className={cn(
-            "mt-3 w-full rounded-2xl py-3",
-            selected && "bg-emerald-600 text-white hover:bg-emerald-500",
-            !selected && "bg-zinc-900 text-white hover:bg-zinc-800",
-            disabled && "cursor-not-allowed opacity-50"
+            "absolute inset-0 h-full w-full transform-[rotateY(180deg)] text-left backface-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            !isFlipped && "pointer-events-none",
+            !canSelect && "cursor-default"
           )}
         >
-          {selected ? `Für ${side} gestimmt` : `Für Karte ${side} stimmen`}
-        </Button>
-      ) : null}
+          <Card
+            className={cn(
+              "flex h-full w-full flex-col rounded-none border-2 bg-background transition-colors",
+              isSelected && "border-foreground",
+              !isSelected &&
+                canSelect &&
+                "border-border hover:border-foreground/50",
+              !isSelected && !canSelect && "border-border"
+            )}
+          >
+            <CardContent className="flex flex-1 p-5">
+              <p className="text-sm leading-relaxed font-medium text-foreground">
+                {text}
+              </p>
+            </CardContent>
+            {hasVoted && (
+              <CardFooter className="flex items-center justify-between gap-8 border-border p-4 py-2">
+                <span className="text-xs text-muted-foreground">
+                  {lookupModelName(model)}
+                </span>
+                {typeof voteCount === "number" && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help text-xs font-medium text-muted-foreground">
+                          {voteCount}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="rounded-none">
+                        <p className="text-xs">
+                          {voterNames && voterNames.length > 0
+                            ? voterNames.join(", ")
+                            : "Keine Votes"}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </CardFooter>
+            )}
+          </Card>
+        </button>
+      </div>
     </div>
   )
 }

@@ -10,27 +10,14 @@ const gameStatus = v.union(
   v.literal("locked")
 )
 
-const side = v.union(v.literal("A"), v.literal("B"))
-const winner = v.union(v.literal("A"), v.literal("B"), v.literal("draw"))
-const mode = v.union(v.literal("auto"), v.literal("manual"))
-
 export default defineSchema({
   games: defineTable({
     status: gameStatus,
-    mode,
+    promptModel: v.string(),
+    playerModels: v.array(v.string()),
     voterModels: v.array(v.string()),
 
-    promptModel: v.string(),
-    answerModelA: v.string(),
-    answerModelB: v.string(),
-
     promptId: v.optional(v.id("prompts")),
-    answerIdA: v.optional(v.id("answers")),
-    answerIdB: v.optional(v.id("answers")),
-
-    winner: v.optional(winner),
-    scoreA: v.optional(v.number()),
-    scoreB: v.optional(v.number()),
 
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -50,20 +37,19 @@ export default defineSchema({
 
   answers: defineTable({
     gameId: v.id("games"),
-    side,
     model: v.string(),
     text: v.string(),
     locked: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_gameId", ["gameId"])
-    .index("by_gameId_side", ["gameId", "side"]),
+    .index("by_gameId_model", ["gameId", "model"]),
 
   votes: defineTable({
     gameId: v.id("games"),
     voterKind: v.union(v.literal("user"), v.literal("model")),
     voterId: v.string(),
-    choice: side,
+    answerId: v.id("answers"),
     locked: v.boolean(),
     createdAt: v.number(),
   })

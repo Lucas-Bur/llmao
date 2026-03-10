@@ -1,6 +1,6 @@
 import { api } from "convex/_generated/api"
 
-import { CardsAgainstLLMs } from "@/components/CardsAgainstLLMs"
+import CardsAgainstLLMs from "@/components/CardsAgainstLLMs"
 
 import type { Id } from "convex/_generated/dataModel"
 
@@ -9,7 +9,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/games/$gameId")({
   loader: async ({ context, params }) => {
-    await Promise.allSettled([
+    return await Promise.allSettled([
       context.queryClient.ensureQueryData(
         convexQuery(api.games.getGame, {
           gameId: params.gameId as Id<"games">,
@@ -26,5 +26,5 @@ export const Route = createFileRoute("/games/$gameId")({
 function RouteComponent() {
   const { gameId } = Route.useParams()
 
-  return <CardsAgainstLLMs gameId={gameId} />
+  return <CardsAgainstLLMs gameId={gameId as Id<"games">} />
 }

@@ -11,21 +11,20 @@ import {
   writerPrompt,
   writerSystemPrompt,
 } from "./prompts"
-import { cleanResponse, withRetry } from "./utils"
+import { cleanResponse, shuffle, withRetry } from "./utils"
 
 import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
 
-import { chat } from "@tanstack/ai"
 import { openRouterText } from "@tanstack/ai-openrouter"
-import * as z from "zod"
+import { chat } from "@tanstack/ai"
 
-type ModelId = keyof OpenRouterModelOptionsByName // | (string & {})
+type ModelId = keyof OpenRouterModelOptionsByName
 
 async function invokeText(
   model: string,
   systemPrompt: string,
   prompt: string,
-  validate: (value: string) => boolean = (value) => value.length > 0
+  validate: (value: string) => boolean = (val) => val.length > 0
 ) {
   if (!process.env.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY not configured")
@@ -33,14 +32,15 @@ async function invokeText(
 
   return await withRetry(
     async () => {
-      const result = await chat({
+      // this should be a string but for thatever reason it is an any?
+      const result = (await chat({
         adapter: openRouterText(model as ModelId),
+        stream: false,
         messages: [{ role: "user", content: prompt }],
         systemPrompts: [systemPrompt],
-        stream: false,
-        outputSchema: z.string(),
-      })
-
+        // Todo: abortcontroller that kills request after 10s
+        temperature: 1.2,
+      })) as string
       return cleanResponse(result)
     },
     validate,
@@ -48,28 +48,23 @@ async function invokeText(
   )
 }
 
+// ---------------------------------------------------------------------------
+
 export const generatePrompt = internalAction({
-  args: {
-    gameId: v.id("games"),
-  },
+  args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const game = await ctx.runQuery(internal.games.getGameInternal, {
+    const data = await ctx.runQuery(internal.games.getGameInternal, {
       gameId: args.gameId,
     })
-
-    if (!game) {
-      throw new Error("Game not found")
-    }
-    if (game.game.status !== "created") {
-      return
-    }
+    if (!data) throw new Error("Game not found")
+    if (data.game.status !== "prompting") return
 
     const system = writerSystemPrompt()
     const prompt = writerPrompt()
 
     try {
       const text = await invokeText(
-        game.game.promptModel,
+        data.game.promptModel,
         system,
         prompt,
         (s) => s.trim().length >= 6
@@ -77,7 +72,7 @@ export const generatePrompt = internalAction({
 
       await ctx.runMutation(internal.games.savePromptResult, {
         gameId: args.gameId,
-        model: game.game.promptModel,
+        model: data.game.promptModel,
         text,
         promptText: prompt,
         rawResponse: text,
@@ -85,7 +80,7 @@ export const generatePrompt = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.games.savePromptFailure, {
         gameId: args.gameId,
-        model: game.game.promptModel,
+        model: data.game.promptModel,
         promptText: prompt,
         errorMessage: error instanceof Error ? error.message : String(error),
       })
@@ -95,40 +90,31 @@ export const generatePrompt = internalAction({
 })
 
 export const generateAnswers = internalAction({
-  args: {
-    gameId: v.id("games"),
-  },
+  args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const data = await ctx.runQuery(internal.games.getGameInternal, {
       gameId: args.gameId,
     })
-
     if (!data?.game || !data.prompt) {
       throw new Error("Incomplete game state")
     }
-    if (data.game.status !== "responding") {
-      return
-    }
+    if (data.game.status !== "responding") return
 
-    const promptText = playerPrompt(data.prompt.text)
     const system = playerSystemPrompt()
+    const promptText = playerPrompt(data.prompt.text)
 
-    const jobs = [
-      {
-        side: "A" as const,
-        model: data.game.answerModelA,
-      },
-      {
-        side: "B" as const,
-        model: data.game.answerModelB,
-      },
-    ]
+    // Skip models that already have an answer
+    const answeredModels = new Set(data.answers.map((a) => a.model))
+
+    const pendingModels = data.game.playerModels.filter(
+      (m) => !answeredModels.has(m)
+    )
 
     await Promise.all(
-      jobs.map(async (job) => {
+      pendingModels.map(async (model) => {
         try {
           const text = await invokeText(
-            job.model,
+            model,
             system,
             promptText,
             (s) => s.trim().length > 0
@@ -136,8 +122,7 @@ export const generateAnswers = internalAction({
 
           await ctx.runMutation(internal.games.saveAnswerResult, {
             gameId: args.gameId,
-            side: job.side,
-            model: job.model,
+            model,
             text,
             promptText,
             rawResponse: text,
@@ -145,8 +130,7 @@ export const generateAnswers = internalAction({
         } catch (error) {
           await ctx.runMutation(internal.games.saveAnswerFailure, {
             gameId: args.gameId,
-            side: job.side,
-            model: job.model,
+            model,
             promptText,
             errorMessage:
               error instanceof Error ? error.message : String(error),
@@ -158,49 +142,55 @@ export const generateAnswers = internalAction({
 })
 
 export const generateModelVotes = internalAction({
-  args: {
-    gameId: v.id("games"),
-  },
+  args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const data = await ctx.runQuery(internal.games.getGameInternal, {
       gameId: args.gameId,
     })
-
-    if (!data?.game || !data.prompt || !data.answerA || !data.answerB) {
+    if (!data?.game || !data.prompt || data.answers.length < 2) {
       throw new Error("Incomplete voting state")
     }
-    if (data.game.status !== "voting") {
-      return
-    }
+    if (data.game.status !== "voting") return
 
-    const voterModels = data.game.voterModels
+    const existingVoterIds = new Set(data.votes.map((vote) => vote.voterId))
 
+    const pendingVoters = data.game.voterModels.filter(
+      (m) => !existingVoterIds.has(`model:${m}`)
+    )
+
+    // Shuffle answers to avoid position bias, build label map
+    const shuffled = shuffle(
+      data.answers.map((a) => ({ id: a._id, text: a.text }))
+    )
+    const labeledAnswers = shuffled.map((a, i) => ({
+      ...a,
+      label: String(i + 1),
+    }))
+
+    const system = voteSystemPrompt(labeledAnswers.length)
     const promptText = votePrompt(
       data.prompt.text,
-      data.answerA.text,
-      data.answerB.text
+      labeledAnswers.map((a) => ({ label: a.label, text: a.text }))
     )
-    const system = voteSystemPrompt()
+
+    const validNumbers = new Set(labeledAnswers.map((_, i) => String(i + 1)))
 
     await Promise.all(
-      voterModels.map(async (model) => {
+      pendingVoters.map(async (model) => {
         const voterId = `model:${model}`
-
         try {
-          const raw = await invokeText(
-            model,
-            system,
-            promptText,
-            (s) => s.trim() === "A" || s.trim() === "B"
+          const raw = await invokeText(model, system, promptText, (s) =>
+            validNumbers.has(s.trim())
           )
 
-          const choice = raw.trim() as "A" | "B"
+          const idx = parseInt(raw.trim(), 10) - 1
+          const chosen = labeledAnswers[idx]
 
           await ctx.runMutation(internal.games.saveModelVote, {
             gameId: args.gameId,
             voterId,
             model,
-            choice,
+            answerId: chosen.id,
             promptText,
             rawResponse: raw,
           })
@@ -216,17 +206,11 @@ export const generateModelVotes = internalAction({
         }
       })
     )
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
-      gameId: args.gameId,
-    })
   },
 })
 
 export const tryFinalizeGame = internalAction({
-  args: {
-    gameId: v.id("games"),
-  },
+  args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     await ctx.runMutation(internal.games.finalizeResolvedGame, {
       gameId: args.gameId,

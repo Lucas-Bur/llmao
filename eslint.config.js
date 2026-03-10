@@ -10,7 +10,7 @@ import { tanstackConfig } from "@tanstack/eslint-config"
 export default [
   // Ignore generated Convex files
   {
-    ignores: ["convex/_generated/**"],
+    ignores: ["convex/_generated/**", "eslint.config.js"],
   },
 
   ...tanstackConfig,

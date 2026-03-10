@@ -3,7 +3,10 @@ import type { MutationCtx } from "./_generated/server"
 const DEFAULT_ELO = 1000
 const K = 32
 
-type Winner = "A" | "B" | "draw"
+interface PlayerVoteInput {
+  model: string
+  votes: number
+}
 
 export async function getOrCreateRating(ctx: MutationCtx, model: string) {
   const existing = await ctx.db
@@ -11,9 +14,7 @@ export async function getOrCreateRating(ctx: MutationCtx, model: string) {
     .withIndex("by_model", (q) => q.eq("model", model))
     .unique()
 
-  if (existing) {
-    return existing
-  }
+  if (existing) return existing
 
   const id = await ctx.db.insert("ratings", {
     model,
@@ -26,58 +27,71 @@ export async function getOrCreateRating(ctx: MutationCtx, model: string) {
   })
 
   const created = await ctx.db.get("ratings", id)
-  if (!created) {
-    throw new Error("Failed to create rating")
-  }
-
+  if (!created) throw new Error("Failed to create rating")
   return created
 }
 
-export async function applyEloResult(
+/**
+ * Multi-player Elo update based on vote shares.
+ *
+ * Each player's "actual score" is their proportion of total votes.
+ * Expected score is derived from pairwise Elo expectations, normalized.
+ * With 2 players this reduces to standard Elo.
+ */
+export async function applyMultiPlayerElo(
   ctx: MutationCtx,
-  modelA: string,
-  modelB: string,
-  winner: Winner
+  players: Array<PlayerVoteInput>
 ) {
-  const ratingA = await getOrCreateRating(ctx, modelA)
-  const ratingB = await getOrCreateRating(ctx, modelB)
+  if (players.length < 2) return
 
-  const expectedA = 1 / (1 + Math.pow(10, (ratingB.elo - ratingA.elo) / 400))
-  const expectedB = 1 - expectedA
+  const totalVotes = players.reduce((sum, p) => sum + p.votes, 0)
+  if (totalVotes === 0) return
 
-  const actualA = winner === "A" ? 1 : winner === "B" ? 0 : 0.5
-  const actualB = 1 - actualA
+  // Fetch current ratings
+  const ratings = await Promise.all(
+    players.map((p) => getOrCreateRating(ctx, p.model))
+  )
 
-  const nextA = Math.round(ratingA.elo + K * (actualA - expectedA))
-  const nextB = Math.round(ratingB.elo + K * (actualB - expectedB))
-  const now = Date.now()
+  const n = players.length
+  const actualShares = players.map((p) => p.votes / totalVotes)
 
-  await ctx.db.patch("ratings", ratingA._id, {
-    elo: nextA,
-    wins: ratingA.wins + (winner === "A" ? 1 : 0),
-    losses: ratingA.losses + (winner === "B" ? 1 : 0),
-    draws: ratingA.draws + (winner === "draw" ? 1 : 0),
-    gamesPlayed: ratingA.gamesPlayed + 1,
-    updatedAt: now,
+  // Pairwise expected shares
+  const rawExpected = ratings.map((rA) => {
+    let sum = 0
+    for (const rB of ratings) {
+      if (rA._id !== rB._id) {
+        sum += 1 / (1 + Math.pow(10, (rB.elo - rA.elo) / 400))
+      }
+    }
+    return sum / (n - 1)
   })
 
-  await ctx.db.patch("ratings", ratingB._id, {
-    elo: nextB,
-    wins: ratingB.wins + (winner === "B" ? 1 : 0),
-    losses: ratingB.losses + (winner === "A" ? 1 : 0),
-    draws: ratingB.draws + (winner === "draw" ? 1 : 0),
-    gamesPlayed: ratingB.gamesPlayed + 1,
-    updatedAt: now,
-  })
+  const totalExpected = rawExpected.reduce((a, b) => a + b, 0)
+  const expectedShares = rawExpected.map((e) => e / totalExpected)
 
-  return {
-    before: {
-      a: ratingA.elo,
-      b: ratingB.elo,
-    },
-    after: {
-      a: nextA,
-      b: nextB,
-    },
+  // Determine winner for win/loss/draw tracking
+  const maxVotes = Math.max(...players.map((p) => p.votes))
+  const topCount = players.filter((p) => p.votes === maxVotes).length
+
+  const ts = Date.now()
+
+  for (let i = 0; i < n; i++) {
+    const diff = actualShares[i] - expectedShares[i]
+    const eloChange = Math.round(K * diff * (n - 1))
+    const newElo = ratings[i].elo + eloChange
+
+    const isTop = players[i].votes === maxVotes
+    const isDraw = topCount > 1 && isTop
+    const isWin = topCount === 1 && isTop
+    const isLoss = !isTop
+
+    await ctx.db.patch("ratings", ratings[i]._id, {
+      elo: newElo,
+      wins: ratings[i].wins + (isWin ? 1 : 0),
+      losses: ratings[i].losses + (isLoss ? 1 : 0),
+      draws: ratings[i].draws + (isDraw ? 1 : 0),
+      gamesPlayed: ratings[i].gamesPlayed + 1,
+      updatedAt: ts,
+    })
   }
 }
