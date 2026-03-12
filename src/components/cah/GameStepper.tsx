@@ -1,6 +1,8 @@
-import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
+
 import type { GameStatus } from "./types"
+
+import { cn } from "@/lib/utils"
 
 interface GameStepperProps {
   status: GameStatus

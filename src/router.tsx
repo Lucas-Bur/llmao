@@ -1,11 +1,10 @@
-import { ConvexProvider } from "convex/react"
-
-import { routeTree } from "./routeTree.gen"
-
 import { ConvexQueryClient } from "@convex-dev/react-query"
 import { QueryClient } from "@tanstack/react-query"
 import { createRouter } from "@tanstack/react-router"
 import { routerWithQueryClient } from "@tanstack/react-router-with-query"
+import { ConvexProvider } from "convex/react"
+
+import { routeTree } from "./routeTree.gen"
 
 export function getRouter() {
   const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string

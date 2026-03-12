@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+
 import { ADJECTIVES, ATTRIBUTES, NOUNS } from "@/constants/uniqueWords"
 
 export function useUniqueNameFromId(id: string | number): string {

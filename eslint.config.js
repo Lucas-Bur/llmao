@@ -1,91 +1,47 @@
 //  @ts-check
 
+import convexPlugin from "@convex-dev/eslint-plugin"
+import { tanstackConfig } from "@tanstack/eslint-config"
 import prettierConfig from "eslint-config-prettier"
 import jsxA11yPlugin from "eslint-plugin-jsx-a11y"
 import reactPlugin from "eslint-plugin-react"
 import reactHooksPlugin from "eslint-plugin-react-hooks"
-import convexPlugin from "@convex-dev/eslint-plugin"
-import { tanstackConfig } from "@tanstack/eslint-config"
 
 export default [
-  // Ignore generated Convex files
   {
-    ignores: ["convex/_generated/**", "eslint.config.js"],
+    ignores: ["convex/_generated/**"],
   },
 
   ...tanstackConfig,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   ...convexPlugin.configs.recommended,
   reactHooksPlugin.configs.flat.recommended,
-
-  {
-    name: "llmao/react",
-    plugins: {
-      react: reactPlugin,
-      "jsx-a11y": jsxA11yPlugin,
-    },
-    languageOptions: {
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    settings: {
-      react: {
-        version: "detect",
-      },
-    },
-    rules: {
-      // React rules
-      "react/jsx-key": "error",
-      "react/jsx-no-useless-fragment": "warn",
-      "react/no-children-prop": "error",
-      "react/no-unescaped-entities": "error",
-      "react/no-unused-class-component-methods": "warn",
-      "react/void-dom-elements-no-children": "error",
-      "react/self-closing-comp": "error",
-      "react/jsx-fragments": ["error", "syntax"],
-      "react/jsx-boolean-value": ["error", "never"],
-      "react/button-has-type": "error",
-      "react/react-in-jsx-scope": "off",
-      "react/prop-types": "off",
-      "react/display-name": "off",
-      "react/jsx-props-no-spreading": "off",
-      "react/jsx-no-bind": "off",
-
-      // React Hooks
-      "react-hooks/exhaustive-deps": "warn",
-
-      // JSX A11y
-      "jsx-a11y/alt-text": "error",
-      "jsx-a11y/no-redundant-roles": "error",
-      "jsx-a11y/no-noninteractive-tabindex": "error",
-      "jsx-a11y/no-static-element-interactions": "warn",
-      "jsx-a11y/no-noninteractive-element-interactions": "warn",
-      "jsx-a11y/no-distracting-elements": "error",
-      "jsx-a11y/no-access-key": "error",
-      "jsx-a11y/no-autofocus": "warn",
-      "jsx-a11y/aria-unsupported-elements": "error",
-      "jsx-a11y/no-aria-hidden-on-focusable": "error",
-      "jsx-a11y/anchor-has-content": "error",
-      "jsx-a11y/anchor-is-valid": "error",
-      "jsx-a11y/lang": "error",
-      "jsx-a11y/iframe-has-title": "error",
-      "jsx-a11y/media-has-caption": "warn",
-      "jsx-a11y/img-redundant-alt": "error",
-      "jsx-a11y/html-has-lang": "error",
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/interactive-supports-focus": "warn",
-    },
-  },
+  jsxA11yPlugin.flatConfigs.recommended,
+  reactPlugin.configs.flat["jsx-runtime"],
 
   {
     name: "llmao/typescript",
     rules: {
-      // Disable conflicting rules from tanstack config
-      "import/order": "off",
+      "import/order": [
+        "error",
+        {
+          groups: [
+            "builtin",
+            "external",
+            "internal",
+            "parent",
+            "sibling",
+            "index",
+          ],
+          pathGroupsExcludedImportTypes: ["builtin"],
+          alphabetize: {
+            order: "asc",
+            caseInsensitive: true,
+          },
+          "newlines-between": "always",
+        },
+      ],
 
-      // TypeScript rules
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

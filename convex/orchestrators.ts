@@ -1,8 +1,10 @@
+import { chat } from "@tanstack/ai"
+import { openRouterText } from "@tanstack/ai-openrouter"
+import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
 import { v } from "convex/values"
 
 import { internal } from "./_generated/api"
 import { internalAction } from "./_generated/server"
-
 import {
   playerPrompt,
   playerSystemPrompt,
@@ -12,11 +14,6 @@ import {
   writerSystemPrompt,
 } from "./prompts"
 import { cleanResponse, shuffle, withRetry } from "./utils"
-
-import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
-
-import { openRouterText } from "@tanstack/ai-openrouter"
-import { chat } from "@tanstack/ai"
 
 type ModelId = keyof OpenRouterModelOptionsByName
 

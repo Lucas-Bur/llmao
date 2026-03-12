@@ -1,4 +1,6 @@
-import { Button } from "@/components/ui/button"
+import { useConvexMutation } from "@convex-dev/react-query"
+import { useMutation } from "@tanstack/react-query"
+import { api } from "convex/_generated/api"
 import {
   ArrowRight,
   Lightbulb,
@@ -10,9 +12,8 @@ import {
 
 import { GameStepper } from "./GameStepper"
 import type { Game, GameStatus } from "./types"
-import { useMutation } from "@tanstack/react-query"
-import { useConvexMutation } from "@convex-dev/react-query"
-import { api } from "convex/_generated/api"
+
+import { Button } from "@/components/ui/button"
 
 interface ActionFooterProps {
   gameId: Game["_id"]

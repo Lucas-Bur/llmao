@@ -1,4 +1,9 @@
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { api } from "convex/_generated/api"
+import type { Id } from "convex/_generated/dataModel"
 import { useState } from "react"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import {
@@ -9,15 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-import { cn } from "@/lib/utils"
-
 import { AVAILABLE_MODELS, lookupModelName } from "@/constants/models"
-
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
-import { api } from "convex/_generated/api"
-import type { Id } from "convex/_generated/dataModel"
+import { cn } from "@/lib/utils"
 
 interface SidePanelProps {
   // gameStatus: GameStatus
@@ -50,10 +48,12 @@ export function SidePanel({
     mutationFn: useConvexMutation(api.games.updateGame),
   })
 
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const game = gameObject!.game
   const gameStatus = game.status
-
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const answers = gameObject!.answers
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const votes = gameObject!.votes
   const promptModel = game.promptModel
   const selectedPlayerModels = game.playerModels
@@ -168,7 +168,10 @@ export function SidePanel({
                           : "text-muted-foreground/50"
                       )}
                     >
-                      {hasVoted ? lookupModelName(votedFor!) : "ausstehend"}
+                      {
+                        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                        hasVoted ? lookupModelName(votedFor!) : "ausstehend"
+                      }
                     </span>
                   </div>
                 ))}

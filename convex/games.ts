@@ -7,7 +7,6 @@ import {
   mutation,
   query,
 } from "./_generated/server"
-
 import { applyMultiPlayerElo } from "./ratings"
 
 // ---------------------------------------------------------------------------

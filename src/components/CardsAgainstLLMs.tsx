@@ -1,22 +1,20 @@
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { Link, useRouter } from "@tanstack/react-router"
+import { api } from "convex/_generated/api"
+import type { Id } from "convex/_generated/dataModel"
+import { ChevronRight, Smile } from "lucide-react"
 import { useMemo, useState } from "react"
 
-import { ChevronRight, Smile } from "lucide-react"
-
-import type { Game } from "./cah/types"
-import { Link, useRouter } from "@tanstack/react-router"
-
-import { SubmitCardModal } from "./cah/SubmitCardModel"
 import { ActionFooter } from "./cah/ActionFooter"
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
-import { api } from "convex/_generated/api"
-
-import type { Id } from "convex/_generated/dataModel"
 import { BlackCard } from "./cah/BlackCard"
-import { WhiteCard } from "./cah/WhiteCard"
 import { SidePanel } from "./cah/SidePanel"
-import { useUniqueNameFromId } from "@/hooks/useUniqueName"
+import { SubmitCardModal } from "./cah/SubmitCardModel"
+import type { Game } from "./cah/types"
+import { WhiteCard } from "./cah/WhiteCard"
+
 import { lookupModelName } from "@/constants/models"
+import { useUniqueNameFromId } from "@/hooks/useUniqueName"
 
 const userId = "user:current"
 
@@ -52,10 +50,14 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
   })
 
   // Game state
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const game = gameObject!.game
   const gameStatus = game.status
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const prompt = gameObject!.prompt
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const allAnswers = gameObject!.answers
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const votes = gameObject!.votes
 
   // const userAnswer = allAnswers.find((a) => a.model === userId)
