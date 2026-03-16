@@ -29,14 +29,18 @@ async function invokeText(
 
   return await withRetry(
     async () => {
-      // this should be a string but for thatever reason it is an any?
+      const abortController = new AbortController()
+      setTimeout(() => {
+        abortController.abort()
+      }, 10_000)
+
       const result = (await chat({
         adapter: openRouterText(model as ModelId),
         stream: false,
         messages: [{ role: "user", content: prompt }],
         systemPrompts: [systemPrompt],
-        // Todo: abortcontroller that kills request after 10s
-        temperature: 1.2,
+        temperature: 1.1,
+        abortController,
       })) as string
       return cleanResponse(result)
     },

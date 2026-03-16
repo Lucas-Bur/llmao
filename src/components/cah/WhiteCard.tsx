@@ -128,7 +128,13 @@ export function WhiteCard({
                       <TooltipContent className="rounded-none">
                         <p className="text-xs">
                           {voterNames && voterNames.length > 0
-                            ? voterNames.join(", ")
+                            ? voterNames
+                                .map((voter) =>
+                                  voter.startsWith("user")
+                                    ? voter
+                                    : lookupModelName(voter)
+                                )
+                                .join(", ")
                             : "Keine Votes"}
                         </p>
                       </TooltipContent>

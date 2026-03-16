@@ -13,7 +13,6 @@ import { SubmitCardModal } from "./cah/SubmitCardModel"
 import type { Game } from "./cah/types"
 import { WhiteCard } from "./cah/WhiteCard"
 
-import { lookupModelName } from "@/constants/models"
 import { useUniqueNameFromId } from "@/hooks/useUniqueName"
 
 const userId = "user:current"
@@ -250,11 +249,7 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
                       key={answer._id}
                       id={answer._id}
                       text={answer.text}
-                      model={
-                        answer.model === userId
-                          ? "Du"
-                          : lookupModelName(answer.model)
-                      }
+                      model={answer.model === userId ? "Du" : answer.model}
                       isFlipped={flippedCards[answer._id] || false}
                       isSelected={selectedCardId === answer._id}
                       isLoading={false}

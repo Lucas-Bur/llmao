@@ -76,7 +76,7 @@ export const submitUserAnswer = mutation({
       throw new Error("Game is not in responding state")
     }
 
-    const model = `user:${args.authorId}`
+    const model = `${args.authorId}`
 
     const existing = await ctx.db
       .query("answers")
