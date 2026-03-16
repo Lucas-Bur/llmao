@@ -12,6 +12,7 @@ import { SidePanel } from "./cah/SidePanel"
 import { SubmitCardModal } from "./cah/SubmitCardModel"
 import type { Game } from "./cah/types"
 import { WhiteCard } from "./cah/WhiteCard"
+import { SidebarInset, SidebarProvider } from "./ui/sidebar"
 
 import { useUniqueNameFromId } from "@/hooks/useUniqueName"
 
@@ -170,7 +171,7 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-14 items-center px-4">
+        <div className="flex h-(--header-height) items-center px-4">
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center border">
@@ -192,127 +193,128 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
       </header>
 
       {/* Main Content - with space for sidebar and footer */}
-      <main className="pr-72 pb-20">
-        <div className="p-6">
-          {/* Black Card */}
-          <div className="mb-6">
-            <BlackCard
-              text={prompt?.text}
-              model={prompt?.model}
-              isLoading={gameStatus === "prompting"}
-              showModel={gameStatus !== "created"}
-            />
+      <SidebarProvider>
+        <SidebarInset>
+          <div className="p-6">
+            {/* Black Card */}
+            <div className="mb-6">
+              <BlackCard
+                text={prompt?.text}
+                model={prompt?.model}
+                isLoading={gameStatus === "prompting"}
+                showModel={gameStatus !== "created"}
+              />
+            </div>
+
+            {/* Status message when no cards yet */}
+            {gameStatus === "created" && (
+              <div className="flex h-56 items-center justify-center border border-dashed">
+                <p className="text-sm text-muted-foreground">
+                  Klicke auf Prompt generieren um zu starten
+                </p>
+              </div>
+            )}
+
+            {gameStatus === "prompting" && (
+              <div className="flex h-56 items-center justify-center border border-dashed">
+                <p className="text-sm text-muted-foreground">
+                  Prompt wird generiert...
+                </p>
+              </div>
+            )}
+
+            {/* White Cards Grid */}
+            {(gameStatus === "responding" ||
+              gameStatus === "voting" ||
+              gameStatus === "resolved" ||
+              gameStatus === "locked") && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {allAnswers.length === 0
+                  ? // Loading placeholders
+                    Array.from({ length: whiteCardCount }).map((_, i) => (
+                      <WhiteCard
+                        key={`loading-${i}`}
+                        id={`loading-${i}`}
+                        text=""
+                        model=""
+                        isFlipped={false}
+                        isSelected={false}
+                        isLoading
+                        hasVoted={false}
+                        canSelect={false}
+                        onFlip={() => {}}
+                        onSelect={() => {}}
+                      />
+                    ))
+                  : allAnswers.map((answer) => (
+                      <WhiteCard
+                        key={answer._id}
+                        id={answer._id}
+                        text={answer.text}
+                        model={answer.model === userId ? "Du" : answer.model}
+                        isFlipped={flippedCards[answer._id] || false}
+                        isSelected={selectedCardId === answer._id}
+                        isLoading={false}
+                        voteCount={voteCounts.counts[answer._id]}
+                        voterNames={voteCounts.voterNames[answer._id]}
+                        hasVoted={hasUserVoted}
+                        canSelect={
+                          allCardsFlipped &&
+                          gameStatus === "voting" &&
+                          !hasUserVoted
+                        }
+                        onFlip={() => handleFlipCard(answer._id)}
+                        onSelect={() => handleSelectCard(answer._id)}
+                      />
+                    ))}
+              </div>
+            )}
+
+            {/* Voting hint */}
+            {gameStatus === "voting" && !hasUserVoted && (
+              <div className="mt-6 text-center">
+                {!allCardsFlipped ? (
+                  <p className="text-sm text-muted-foreground">
+                    Decke alle Karten auf, um abstimmen zu können
+                  </p>
+                ) : !selectedCardId ? (
+                  <p className="text-sm text-muted-foreground">
+                    Wähle eine Karte aus, um abzustimmen
+                  </p>
+                ) : (
+                  <p className="text-sm text-foreground">
+                    Karte ausgewählt - klicke auf Abstimmen
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Results message */}
+            {(gameStatus === "resolved" || gameStatus === "locked") && (
+              <div className="mt-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Spiel beendet - ELO-Änderungen wurden berechnet
+                </p>
+              </div>
+            )}
           </div>
-
-          {/* Status message when no cards yet */}
-          {gameStatus === "created" && (
-            <div className="flex h-56 items-center justify-center border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                Klicke auf Prompt generieren um zu starten
-              </p>
-            </div>
-          )}
-
-          {gameStatus === "prompting" && (
-            <div className="flex h-56 items-center justify-center border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                Prompt wird generiert...
-              </p>
-            </div>
-          )}
-
-          {/* White Cards Grid */}
-          {(gameStatus === "responding" ||
-            gameStatus === "voting" ||
-            gameStatus === "resolved" ||
-            gameStatus === "locked") && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {allAnswers.length === 0
-                ? // Loading placeholders
-                  Array.from({ length: whiteCardCount }).map((_, i) => (
-                    <WhiteCard
-                      key={`loading-${i}`}
-                      id={`loading-${i}`}
-                      text=""
-                      model=""
-                      isFlipped={false}
-                      isSelected={false}
-                      isLoading
-                      hasVoted={false}
-                      canSelect={false}
-                      onFlip={() => {}}
-                      onSelect={() => {}}
-                    />
-                  ))
-                : allAnswers.map((answer) => (
-                    <WhiteCard
-                      key={answer._id}
-                      id={answer._id}
-                      text={answer.text}
-                      model={answer.model === userId ? "Du" : answer.model}
-                      isFlipped={flippedCards[answer._id] || false}
-                      isSelected={selectedCardId === answer._id}
-                      isLoading={false}
-                      voteCount={voteCounts.counts[answer._id]}
-                      voterNames={voteCounts.voterNames[answer._id]}
-                      hasVoted={hasUserVoted}
-                      canSelect={
-                        allCardsFlipped &&
-                        gameStatus === "voting" &&
-                        !hasUserVoted
-                      }
-                      onFlip={() => handleFlipCard(answer._id)}
-                      onSelect={() => handleSelectCard(answer._id)}
-                    />
-                  ))}
-            </div>
-          )}
-
-          {/* Voting hint */}
-          {gameStatus === "voting" && !hasUserVoted && (
-            <div className="mt-6 text-center">
-              {!allCardsFlipped ? (
-                <p className="text-sm text-muted-foreground">
-                  Decke alle Karten auf, um abstimmen zu können
-                </p>
-              ) : !selectedCardId ? (
-                <p className="text-sm text-muted-foreground">
-                  Wähle eine Karte aus, um abzustimmen
-                </p>
-              ) : (
-                <p className="text-sm text-foreground">
-                  Karte ausgewählt - klicke auf Abstimmen
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Results message */}
-          {(gameStatus === "resolved" || gameStatus === "locked") && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Spiel beendet - ELO-Änderungen wurden berechnet
-              </p>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Side Panel */}
-      <SidePanel
-        // gameStatus={gameStatus}
-        // answers={allAnswers}
-        // votes={votes}
-        // ratings={mockRatings}
-        // eloChanges={
-        //   gameStatus === "resolved" || gameStatus === "locked"
-        //     ? mockEloChanges
-        //     : undefined
-        // }
-        // config={config}
-        // onConfigChange={setConfig}
-        gameId={gameId as Id<"games">}
-      />
+        </SidebarInset>
+        {/* Side Panel */}
+        <SidePanel
+          // gameStatus={gameStatus}
+          // answers={allAnswers}
+          // votes={votes}
+          // ratings={mockRatings}
+          // eloChanges={
+          //   gameStatus === "resolved" || gameStatus === "locked"
+          //     ? mockEloChanges
+          //     : undefined
+          // }
+          // config={config}
+          // onConfigChange={setConfig}
+          gameId={gameId as Id<"games">}
+        />
+      </SidebarProvider>
 
       {/* Submit Card Modal */}
       <SubmitCardModal

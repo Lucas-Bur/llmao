@@ -4,6 +4,13 @@ import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { useState } from "react"
 
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarRail,
+} from "../ui/sidebar"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import {
@@ -98,88 +105,92 @@ export function SidePanel({
   //   .filter((m) => !m.startsWith("user:"))
 
   return (
-    <aside className="fixed top-14 right-0 bottom-16 w-72 overflow-y-auto border-l bg-background">
+    <Sidebar
+      side="right"
+      className="top-(--header-height) h-[calc(100svh-var(--header-height))]!"
+    >
       <Tabs defaultValue="config" className="flex h-full flex-col">
-        <div className="border-b p-3">
-          <TabsList className="w-full rounded-none">
-            <TabsTrigger value="config" className="flex-1 rounded-none">
+        <SidebarHeader className="border-b border-sidebar-border">
+          <TabsList className="w-full">
+            <TabsTrigger value="config" className="flex-1">
               Config
             </TabsTrigger>
-            <TabsTrigger value="live" className="flex-1 rounded-none">
+            <TabsTrigger value="live" className="flex-1">
               Live
             </TabsTrigger>
           </TabsList>
-        </div>
+        </SidebarHeader>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          {/* LIVE TAB */}
-          <TabsContent value="live" className="m-0 space-y-3">
-            {/* Answer Status */}
-            <section className="border-b pb-3">
-              <h3 className="mb-2 text-xs font-medium">Karten-Status</h3>
-              <div className="space-y-1.5">
-                {answerStatus.map(({ model, hasAnswer }) => (
-                  <div
-                    key={model}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="truncate text-muted-foreground">
-                      {lookupModelName(model)}
-                    </span>
-                    <span
-                      className={cn(
-                        "shrink-0",
-                        hasAnswer
-                          ? "text-foreground"
-                          : "text-muted-foreground/50"
-                      )}
+        <SidebarContent>
+          <div className="flex-1 overflow-y-auto p-3">
+            {/* LIVE TAB */}
+            <TabsContent value="live" className="m-0 space-y-3">
+              {/* Answer Status */}
+              <section className="border-b pb-3">
+                <h3 className="mb-2 text-xs font-medium">Karten-Status</h3>
+                <div className="space-y-1.5">
+                  {answerStatus.map(({ model, hasAnswer }) => (
+                    <div
+                      key={model}
+                      className="flex items-center justify-between text-xs"
                     >
-                      {hasAnswer ? "bereit" : "ausstehend"}
-                    </span>
+                      <span className="truncate text-muted-foreground">
+                        {lookupModelName(model)}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0",
+                          hasAnswer
+                            ? "text-foreground"
+                            : "text-muted-foreground/50"
+                        )}
+                      >
+                        {hasAnswer ? "bereit" : "ausstehend"}
+                      </span>
+                    </div>
+                  ))}
+                  {/* User slot */}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Du</span>
+                    <span className="text-muted-foreground/50">optional</span>
                   </div>
-                ))}
-                {/* User slot */}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Du</span>
-                  <span className="text-muted-foreground/50">optional</span>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            {/* Voter Status */}
-            <section className="border-b pb-3">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-medium">Voter-Status</h3>
-              </div>
-              <div className="space-y-1.5">
-                {voteStatus.map(({ model, hasVoted, votedFor }) => (
-                  <div
-                    key={model}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="truncate text-muted-foreground">
-                      {lookupModelName(model)}
-                    </span>
-                    <span
-                      className={cn(
-                        "shrink-0",
-                        hasVoted
-                          ? "text-foreground"
-                          : "text-muted-foreground/50"
-                      )}
+              {/* Voter Status */}
+              <section className="border-b pb-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-xs font-medium">Voter-Status</h3>
+                </div>
+                <div className="space-y-1.5">
+                  {voteStatus.map(({ model, hasVoted, votedFor }) => (
+                    <div
+                      key={model}
+                      className="flex items-center justify-between text-xs"
                     >
-                      {
-                        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                        hasVoted ? lookupModelName(votedFor!) : "ausstehend"
-                      }
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
+                      <span className="truncate text-muted-foreground">
+                        {lookupModelName(model)}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0",
+                          hasVoted
+                            ? "text-foreground"
+                            : "text-muted-foreground/50"
+                        )}
+                      >
+                        {
+                          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                          hasVoted ? lookupModelName(votedFor!) : "ausstehend"
+                        }
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-            {/* ELO Section */}
-            {/* <section>
+              {/* ELO Section */}
+              {/* <section>
               <h3 className="mb-2 text-xs font-medium">Spieler-ELO</h3>
               <div className="space-y-1.5">
                 {participatingModels.length === 0 ? (
@@ -227,151 +238,150 @@ export function SidePanel({
                 )}
               </div>
             </section> */}
-          </TabsContent>
+            </TabsContent>
 
-          {/* CONFIG TAB */}
-          <TabsContent value="config" className="m-0 space-y-3">
-            {/* Black Card Model */}
-            <section className="border-b pb-3">
-              <h3 className="mb-2 text-xs font-medium">Schwarze Karte</h3>
-              <Select
-                value={promptModel}
-                onValueChange={async (v) =>
-                  await updateGameMutation({
-                    gameId: gameId as Id<"games">,
-                    promptModel: v,
-                  })
-                }
-                disabled={isPromptGenerated}
-              >
-                <SelectTrigger
-                  className={cn(
-                    "rounded-none",
-                    isPromptGenerated && "opacity-50"
-                  )}
+            {/* CONFIG TAB */}
+            <TabsContent value="config" className="m-0 space-y-3">
+              {/* Black Card Model */}
+              <section className="border-b pb-3">
+                <h3 className="mb-2 text-xs font-medium">Schwarze Karte</h3>
+                <Select
+                  value={promptModel}
+                  onValueChange={async (v) =>
+                    await updateGameMutation({
+                      gameId: gameId as Id<"games">,
+                      promptModel: v,
+                    })
+                  }
+                  disabled={isPromptGenerated}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-none">
-                  {AVAILABLE_MODELS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {lookupModelName(m)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {isPromptGenerated && (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Gesperrt
-                </p>
-              )}
-            </section>
+                  <SelectTrigger
+                    className={cn("", isPromptGenerated && "opacity-50")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="">
+                    {AVAILABLE_MODELS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {lookupModelName(m)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isPromptGenerated && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Gesperrt
+                  </p>
+                )}
+              </section>
 
-            {/* White Card Count */}
-            <section className="border-b pb-3">
-              <h3 className="mb-2 text-xs font-medium">Anzahl Karten</h3>
-              <Select
-                value={whiteCardsToBeGenerated.toString()}
-                onValueChange={(v) =>
-                  setWhiteCardsToBeGenerated(() => parseInt(v))
-                }
-                disabled={areAnswersGenerated}
-              >
-                <SelectTrigger
-                  className={cn(
-                    "rounded-none",
-                    areAnswersGenerated && "opacity-50"
-                  )}
+              {/* White Card Count */}
+              <section className="border-b pb-3">
+                <h3 className="mb-2 text-xs font-medium">Anzahl Karten</h3>
+                <Select
+                  value={whiteCardsToBeGenerated.toString()}
+                  onValueChange={(v) =>
+                    setWhiteCardsToBeGenerated(() => parseInt(v))
+                  }
+                  disabled={areAnswersGenerated}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-none">
-                  {[2, 3, 4, 5, 6].map((n) => (
-                    <SelectItem key={n} value={n.toString()}>
-                      {n}
-                    </SelectItem>
+                  <SelectTrigger
+                    className={cn("", areAnswersGenerated && "opacity-50")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="">
+                    {[2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {areAnswersGenerated && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Gesperrt
+                  </p>
+                )}
+              </section>
+
+              {/* Player Models */}
+              <section className="border-b pb-3">
+                <h3 className="mb-2 text-xs font-medium">Spieler</h3>
+                <div className="space-y-1.5">
+                  {AVAILABLE_MODELS.map((model) => (
+                    <div key={model} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`player-${model}`}
+                        checked={selectedPlayerModels.includes(model)}
+                        disabled={areAnswersGenerated}
+                        onCheckedChange={async (checked) => {
+                          const updated = checked
+                            ? [...selectedPlayerModels, model]
+                            : selectedPlayerModels.filter((m) => m !== model)
+                          await updateGameMutation({
+                            gameId: gameId as Id<"games">,
+                            playerModels: updated,
+                          })
+                        }}
+                        className=""
+                      />
+                      <Label
+                        htmlFor={`player-${model}`}
+                        className={cn(
+                          "text-xs",
+                          areAnswersGenerated && "opacity-50"
+                        )}
+                      >
+                        {lookupModelName(model)}
+                      </Label>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-              {areAnswersGenerated && (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Gesperrt
-                </p>
-              )}
-            </section>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    + Du kannst eine Karte einreichen
+                  </p>
+                </div>
+              </section>
 
-            {/* Player Models */}
-            <section className="border-b pb-3">
-              <h3 className="mb-2 text-xs font-medium">Spieler</h3>
-              <div className="space-y-1.5">
-                {AVAILABLE_MODELS.map((model) => (
-                  <div key={model} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`player-${model}`}
-                      checked={selectedPlayerModels.includes(model)}
-                      disabled={areAnswersGenerated}
-                      onCheckedChange={async (checked) => {
-                        const updated = checked
-                          ? [...selectedPlayerModels, model]
-                          : selectedPlayerModels.filter((m) => m !== model)
-                        await updateGameMutation({
-                          gameId: gameId as Id<"games">,
-                          playerModels: updated,
-                        })
-                      }}
-                      className="rounded-none"
-                    />
-                    <Label
-                      htmlFor={`player-${model}`}
-                      className={cn(
-                        "text-xs",
-                        areAnswersGenerated && "opacity-50"
-                      )}
-                    >
-                      {lookupModelName(model)}
-                    </Label>
-                  </div>
-                ))}
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  + Du kannst eine Karte einreichen
-                </p>
-              </div>
-            </section>
-
-            {/* Voter Models */}
-            <section>
-              <h3 className="mb-2 text-xs font-medium">Voter</h3>
-              <div className="space-y-1.5">
-                {AVAILABLE_MODELS.map((model) => (
-                  <div key={model} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`voter-${model}`}
-                      checked={selectedVoterModels.includes(model)}
-                      disabled={isGameFinished}
-                      onCheckedChange={async (checked) => {
-                        const updated = checked
-                          ? [...selectedVoterModels, model]
-                          : selectedVoterModels.filter((m) => m !== model)
-                        await updateGameMutation({
-                          gameId: gameId as Id<"games">,
-                          voterModels: updated,
-                        })
-                      }}
-                      className="rounded-none"
-                    />
-                    <Label
-                      htmlFor={`voter-${model}`}
-                      className={cn("text-xs", isGameFinished && "opacity-50")}
-                    >
-                      {lookupModelName(model)}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </TabsContent>
-        </div>
+              {/* Voter Models */}
+              <section>
+                <h3 className="mb-2 text-xs font-medium">Voter</h3>
+                <div className="space-y-1.5">
+                  {AVAILABLE_MODELS.map((model) => (
+                    <div key={model} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`voter-${model}`}
+                        checked={selectedVoterModels.includes(model)}
+                        disabled={isGameFinished}
+                        onCheckedChange={async (checked) => {
+                          const updated = checked
+                            ? [...selectedVoterModels, model]
+                            : selectedVoterModels.filter((m) => m !== model)
+                          await updateGameMutation({
+                            gameId: gameId as Id<"games">,
+                            voterModels: updated,
+                          })
+                        }}
+                        className=""
+                      />
+                      <Label
+                        htmlFor={`voter-${model}`}
+                        className={cn(
+                          "text-xs",
+                          isGameFinished && "opacity-50"
+                        )}
+                      >
+                        {lookupModelName(model)}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </TabsContent>
+          </div>
+        </SidebarContent>
       </Tabs>
-    </aside>
+      <SidebarRail />
+    </Sidebar>
   )
 }
