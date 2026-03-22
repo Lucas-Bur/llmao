@@ -2,7 +2,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { lookupModelName } from "@/constants/models"
 
-interface BlackCardProps {
+type BlackCardProps = {
   text?: string | null
   model?: string
   isLoading?: boolean
@@ -14,7 +14,7 @@ export function BlackCard({
   model,
   isLoading,
   showModel = true,
-}: BlackCardProps) {
+}: Readonly<BlackCardProps>) {
   if (isLoading) {
     return (
       <Card className="flex h-64 w-full flex-col rounded-none border-zinc-800 bg-zinc-950">

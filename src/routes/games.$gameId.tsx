@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 
-import CardsAgainstLLMs from "@/components/CardsAgainstLLMs"
+import CardsAgainstLLMs from "@/components/cards-against-llms"
 
 export const Route = createFileRoute("/games/$gameId")({
   loader: async ({ context, params }) => {

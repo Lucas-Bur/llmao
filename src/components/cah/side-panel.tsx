@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AVAILABLE_MODELS, lookupModelName } from "@/constants/models"
 import { cn } from "@/lib/utils"
 
-interface SidePanelProps {
+type SidePanelProps = {
   // gameStatus: GameStatus
   // answers: Answer[]
   // votes: Vote[]
@@ -45,7 +45,7 @@ export function SidePanel({
   // selectedPlayerModels,
   // selectedVoterModels,
   gameId,
-}: SidePanelProps) {
+}: Readonly<SidePanelProps>) {
   const [whiteCardsToBeGenerated, setWhiteCardsToBeGenerated] = useState(3)
 
   const { data: gameObject } = useSuspenseQuery(
@@ -91,7 +91,7 @@ export function SidePanel({
     const vote = votes.find((v) => v.voterId === `model:${model}`)
     const votedAnswer = vote
       ? answers.find((a) => a._id === vote.answerId)
-      : null
+      : undefined
     return {
       model,
       hasVoted: !!vote,
@@ -281,7 +281,7 @@ export function SidePanel({
                 <Select
                   value={whiteCardsToBeGenerated.toString()}
                   onValueChange={(v) =>
-                    setWhiteCardsToBeGenerated(() => parseInt(v))
+                    setWhiteCardsToBeGenerated(() => Number.parseInt(v))
                   }
                   disabled={areAnswersGenerated}
                 >

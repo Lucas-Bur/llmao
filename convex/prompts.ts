@@ -28,4 +28,4 @@ export const votePrompt = (
   prompt: string,
   answers: Array<{ label: string; text: string }>
 ) =>
-  `Prompt: "${prompt}"\n\n${answers.map((a) => `${a.label}: "${a.text}"`).join("\n")}\n\nWhich is funniest? Reply with just the number.` as const
+  `Prompt: "${prompt}"\n\n${answers.map((answer) => answer.label + ': "' + answer.text + '"').join("\n")}\n\nWhich is funniest? Reply with just the number.` as const

@@ -18,6 +18,7 @@ export const Route = createRootRouteWithContext<{
   head: () => ({
     meta: [
       {
+        // eslint-disable-next-line unicorn/text-encoding-identifier-case
         charSet: "utf-8",
       },
       {
@@ -38,7 +39,7 @@ export const Route = createRootRouteWithContext<{
   shellComponent: RootDocument,
 })
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+function RootDocument({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <head>

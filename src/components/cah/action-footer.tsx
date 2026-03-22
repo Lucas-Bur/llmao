@@ -10,15 +10,15 @@ import {
   Vote,
 } from "lucide-react"
 
-import { GameStepper } from "./GameStepper"
+import { GameStepper } from "./game-stepper"
 import type { Game, GameStatus } from "./types"
 
 import { Button } from "@/components/ui/button"
 
-interface ActionFooterProps {
+type ActionFooterProps = {
   gameId: Game["_id"]
   gameStatus: GameStatus
-  selectedCardId: string | null
+  selectedCardId: string | undefined
   allCardsFlipped: boolean
   hasUserVoted: boolean
   hasUserSubmittedCard: boolean
@@ -34,20 +34,27 @@ function getNextAction(status: GameStatus): {
   icon: "play" | "arrow" | "reset"
 } {
   switch (status) {
-    case "created":
+    case "created": {
       return { label: "Prompt generieren", icon: "play" }
-    case "prompting":
+    }
+    case "prompting": {
       return { label: "Warten...", icon: "arrow" }
-    case "responding":
+    }
+    case "responding": {
       return { label: "Zum Voting", icon: "arrow" }
-    case "voting":
+    }
+    case "voting": {
       return { label: "Auswerten", icon: "arrow" }
-    case "resolved":
+    }
+    case "resolved": {
       return { label: "Neues Spiel", icon: "reset" }
-    case "locked":
+    }
+    case "locked": {
       return { label: "Neues Spiel", icon: "reset" }
-    default:
+    }
+    default: {
       return { label: "Weiter", icon: "arrow" }
+    }
   }
 }
 
@@ -63,7 +70,7 @@ export function ActionFooter({
   onVote,
   onAdvanceState,
   onNewGame,
-}: ActionFooterProps) {
+}: Readonly<ActionFooterProps>) {
   const nextAction = getNextAction(gameStatus)
   const isVotingPhase = gameStatus === "voting"
   const canVote =
@@ -153,7 +160,7 @@ export function ActionFooter({
                   <Lightbulb className="h-4 w-4" />
                   Antworten generieren
                 </Button>
-              ) : null}
+              ) : undefined}
             </>
           )}
         </div>

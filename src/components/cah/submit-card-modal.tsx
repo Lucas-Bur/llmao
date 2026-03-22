@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 
-interface SubmitCardModalProps {
+type SubmitCardModalProps = {
   isOpen: boolean
   onClose: () => void
   onSubmit: (text: string) => void
@@ -24,7 +24,7 @@ export function SubmitCardModal({
   onClose,
   onSubmit,
   promptText,
-}: SubmitCardModalProps) {
+}: Readonly<SubmitCardModalProps>) {
   const [cardText, setCardText] = useState("")
 
   const handleSubmit = () => {
@@ -63,7 +63,7 @@ export function SubmitCardModal({
           <Textarea
             placeholder="Deine Antwort..."
             value={cardText}
-            onChange={(e) => setCardText(e.target.value)}
+            onChange={(event) => setCardText(event.target.value)}
             className="min-h-24 resize-none rounded-none"
             maxLength={280}
           />

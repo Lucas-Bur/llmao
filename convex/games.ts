@@ -247,11 +247,11 @@ export const getGame = query({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) return null
+    if (!game) return
 
     const prompt = game.promptId
       ? await ctx.db.get("prompts", game.promptId)
-      : null
+      : undefined
 
     const answers = await ctx.db
       .query("answers")
@@ -282,7 +282,7 @@ export const leaderboard = query({
   args: {},
   handler: async (ctx) => {
     const ratings = await ctx.db.query("ratings").collect()
-    return ratings.sort((a, b) => b.elo - a.elo)
+    return ratings.toSorted((a, b) => b.elo - a.elo)
   },
 })
 
@@ -557,11 +557,11 @@ export const getGameInternal = internalQuery({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) return null
+    if (!game) return
 
     const prompt = game.promptId
       ? await ctx.db.get("prompts", game.promptId)
-      : null
+      : undefined
 
     const answers = await ctx.db
       .query("answers")

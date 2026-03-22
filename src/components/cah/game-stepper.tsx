@@ -4,7 +4,7 @@ import type { GameStatus } from "./types"
 
 import { cn } from "@/lib/utils"
 
-interface GameStepperProps {
+type GameStepperProps = {
   status: GameStatus
 }
 
@@ -30,7 +30,7 @@ function getStepIndex(status: GameStatus): number {
   return STATUS_ORDER.indexOf(status)
 }
 
-export function GameStepper({ status }: GameStepperProps) {
+export function GameStepper({ status }: Readonly<GameStepperProps>) {
   const currentIndex = getStepIndex(status)
 
   return (

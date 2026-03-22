@@ -6,19 +6,21 @@ import type { Id } from "convex/_generated/dataModel"
 import { ChevronRight, Smile } from "lucide-react"
 import { useMemo, useState } from "react"
 
-import { ActionFooter } from "./cah/ActionFooter"
-import { BlackCard } from "./cah/BlackCard"
-import { SidePanel } from "./cah/SidePanel"
-import { SubmitCardModal } from "./cah/SubmitCardModel"
+import { ActionFooter } from "./cah/action-footer"
+import { BlackCard } from "./cah/black-card"
+import { SidePanel } from "./cah/side-panel"
+import { SubmitCardModal } from "./cah/submit-card-modal"
 import type { Game } from "./cah/types"
-import { WhiteCard } from "./cah/WhiteCard"
+import { WhiteCard } from "./cah/white-card"
 import { SidebarInset, SidebarProvider } from "./ui/sidebar"
 
-import { useUniqueNameFromId } from "@/hooks/useUniqueName"
+import { useUniqueNameFromId } from "@/hooks/use-unique-names"
 
 const userId = "user:current"
 
-export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
+export default function FusionPrototype({
+  gameId,
+}: Readonly<{ gameId: Game["_id"] }>) {
   const router = useRouter()
 
   // Queries
@@ -69,7 +71,7 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
 
   // UI state
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [selectedCardId, setSelectedCardId] = useState<string | undefined>()
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
 
   // Computed values
@@ -98,12 +100,14 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
 
   // Handlers
   const handleFlipCard = (answerId: string) => {
-    setFlippedCards((prev) => ({ ...prev, [answerId]: true }))
+    setFlippedCards((previous) => ({ ...previous, [answerId]: true }))
   }
 
   const handleSelectCard = (answerId: string) => {
     if (!allCardsFlipped || hasUserVoted || gameStatus !== "voting") return
-    setSelectedCardId((prev) => (prev === answerId ? null : answerId))
+    setSelectedCardId((previous) =>
+      previous === answerId ? undefined : answerId
+    )
   }
 
   const handleVote = async () => {
@@ -127,28 +131,32 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
 
   const handleAdvanceState = async () => {
     switch (gameStatus) {
-      case "created":
+      case "created": {
         // Start prompting
         await triggerGeneratePromptMutation({ gameId })
         break
+      }
 
-      case "responding":
+      case "responding": {
         // Move to voting
         // await triggerGenerateAnswersMutation({ gameId }) // wurde ausgelagert
         await advanceToVotingMutation({ gameId })
         break
+      }
 
-      case "voting":
+      case "voting": {
         // Resolve game
 
         await triggerGenerateModelVotesMutation({ gameId }) // das ist nocht ganz sauber, weil eigentlich der use nicht voten muss und man warten muss, bis alle modelle gevoted haben
         await triggerFinalizeGameMutation({ gameId })
         break
+      }
 
-      case "resolved":
+      case "resolved": {
         // Lock game
         // await triggerFinalizeGameMutation({ gameId })
         break
+      }
     }
   }
 
@@ -166,6 +174,30 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
 
   // Can submit card only during responding phase
   const canSubmitCard = gameStatus === "responding" && !hasUserSubmittedCard
+
+  function getVotingHintMessage(): React.ReactNode {
+    if (!allCardsFlipped) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Decke alle Karten auf, um abstimmen zu können
+        </p>
+      )
+    }
+
+    if (selectedCardId) {
+      return (
+        <p className="text-sm text-foreground">
+          Karte ausgewählt - klicke auf Abstimmen
+        </p>
+      )
+    }
+
+    return (
+      <p className="text-sm text-muted-foreground">
+        Wähle eine Karte aus, um abzustimmen
+      </p>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -272,21 +304,7 @@ export default function FusionPrototype({ gameId }: { gameId: Game["_id"] }) {
 
             {/* Voting hint */}
             {gameStatus === "voting" && !hasUserVoted && (
-              <div className="mt-6 text-center">
-                {!allCardsFlipped ? (
-                  <p className="text-sm text-muted-foreground">
-                    Decke alle Karten auf, um abstimmen zu können
-                  </p>
-                ) : !selectedCardId ? (
-                  <p className="text-sm text-muted-foreground">
-                    Wähle eine Karte aus, um abzustimmen
-                  </p>
-                ) : (
-                  <p className="text-sm text-foreground">
-                    Karte ausgewählt - klicke auf Abstimmen
-                  </p>
-                )}
-              </div>
+              <div className="mt-6 text-center">{getVotingHintMessage()}</div>
             )}
 
             {/* Results message */}

@@ -3,7 +3,7 @@ import type { MutationCtx } from "./_generated/server"
 const DEFAULT_ELO = 1000
 const K = 32
 
-interface PlayerVoteInput {
+type PlayerVoteInput = {
   model: string
   votes: number
 }
@@ -67,7 +67,7 @@ export async function applyMultiPlayerElo(
   })
 
   const totalExpected = rawExpected.reduce((a, b) => a + b, 0)
-  const expectedShares = rawExpected.map((e) => e / totalExpected)
+  const expectedShares = rawExpected.map((expected) => expected / totalExpected)
 
   // Determine winner for win/loss/draw tracking
   const maxVotes = Math.max(...players.map((p) => p.votes))

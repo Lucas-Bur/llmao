@@ -9,7 +9,7 @@ import {
 import { lookupModelName } from "@/constants/models"
 import { cn } from "@/lib/utils"
 
-interface WhiteCardProps {
+type WhiteCardProps = {
   id: string
   text: string
   model: string
@@ -36,7 +36,7 @@ export function WhiteCard({
   canSelect,
   onFlip,
   onSelect,
-}: WhiteCardProps) {
+}: Readonly<WhiteCardProps>) {
   if (isLoading) {
     return (
       <Card className="flex h-56 w-full flex-col rounded-none border-border bg-background">

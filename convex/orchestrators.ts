@@ -21,7 +21,7 @@ async function invokeText(
   model: string,
   systemPrompt: string,
   prompt: string,
-  validate: (value: string) => boolean = (val) => val.length > 0
+  validate: (value: string) => boolean = (value) => value.length > 0
 ) {
   if (!process.env.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY not configured")
@@ -184,8 +184,8 @@ export const generateModelVotes = internalAction({
             validNumbers.has(s.trim())
           )
 
-          const idx = parseInt(raw.trim(), 10) - 1
-          const chosen = labeledAnswers[idx]
+          const index = Number.parseInt(raw.trim(), 10) - 1
+          const chosen = labeledAnswers[index]
 
           await ctx.runMutation(internal.games.saveModelVote, {
             gameId: args.gameId,

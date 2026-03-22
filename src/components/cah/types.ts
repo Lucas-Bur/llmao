@@ -14,7 +14,7 @@ export type Vote = Doc<"votes">
 
 export type Rating = Doc<"ratings">
 
-export interface GameData {
+export type GameData = {
   game: Game
   prompt: Prompt | null
   answers: Array<Answer>
@@ -22,11 +22,11 @@ export interface GameData {
 }
 
 // UI State types
-export interface CardFlipState {
+export type CardFlipState = {
   [answerId: string]: boolean
 }
 
-export interface ModelEloDisplay {
+export type ModelEloDisplay = {
   model: string
   eloBefore: number
   eloAfter: number

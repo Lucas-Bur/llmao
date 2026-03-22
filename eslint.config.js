@@ -6,10 +6,12 @@ import prettierConfig from "eslint-config-prettier"
 import jsxA11yPlugin from "eslint-plugin-jsx-a11y"
 import reactPlugin from "eslint-plugin-react"
 import reactHooksPlugin from "eslint-plugin-react-hooks"
+import sonarjs from "eslint-plugin-sonarjs"
+import eslintPluginUnicorn from "eslint-plugin-unicorn"
 
 export default [
   {
-    ignores: ["convex/_generated/**"],
+    ignores: ["convex/_generated/**", "src/routeTree.gen.ts"],
   },
 
   ...tanstackConfig,
@@ -18,7 +20,8 @@ export default [
   reactHooksPlugin.configs.flat.recommended,
   jsxA11yPlugin.flatConfigs.recommended,
   reactPlugin.configs.flat["jsx-runtime"],
-
+  sonarjs.configs?.recommended,
+  eslintPluginUnicorn.configs.recommended,
   {
     name: "llmao/typescript",
     rules: {
@@ -86,7 +89,7 @@ export default [
         "warn",
         { ignoreConditionalTests: true, ignoreMixedLogicalExpressions: true },
       ],
-      "@typescript-eslint/consistent-type-definitions": ["error", "interface"],
+      "@typescript-eslint/consistent-type-definitions": ["error", "type"],
       "@typescript-eslint/only-throw-error": [
         "error",
         {
@@ -97,6 +100,22 @@ export default [
               package: "@tanstack/react-router",
             },
           ],
+        },
+      ],
+      "unicorn/prevent-abbreviations": [
+        "error",
+        {
+          allowList: {
+            args: true,
+            ctx: true,
+            Ctx: true,
+            i: true,
+            j: true,
+            props: true,
+            Props: true,
+            str: true,
+            utils: true,
+          },
         },
       ],
     },
