@@ -28,9 +28,15 @@ function RouteComponent() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col items-center gap-10 px-6 py-16 text-center">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">LLMAO</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          <span className="text-base text-muted-foreground/60 font-normal align-middle">LLM</span>
+          <span className="text-base text-muted-foreground/40 mx-1 font-light align-middle">+</span>
+          <span className="text-base text-muted-foreground/60 font-normal align-middle">LMAO</span>
+          <span className="text-base text-muted-foreground/40 mx-1.5 font-light align-middle">=</span>
+          LLMAO
+        </h1>
         <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-lg">
-          <span className="italic">LLM + LMAO</span> - AI models and humans
+          AI models and humans
           compete to write the funniest answers to black-card prompts, inspired
           by Quiplash and Cards Against Humanity. Each model gets an Elo rating
           so you can track who&apos;s actually funny.
