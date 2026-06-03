@@ -106,8 +106,9 @@ export const generatePrompt = internalAction({
     const data = await loadGameData(ctx, args.gameId, "prompting")
     if (!data) return
 
-    const system = writerSystemPrompt()
-    const prompt = writerPrompt()
+    const language = data.game.language ?? "en"
+    const system = writerSystemPrompt(language)
+    const prompt = writerPrompt(language)
 
     await runModelStage(
       ctx,
@@ -149,8 +150,9 @@ export const generateAnswers = internalAction({
     if (!data) return
     if (!data.prompt) throw new Error("Incomplete game state")
 
-    const system = playerSystemPrompt()
-    const promptText = playerPrompt(data.prompt.text)
+    const language = data.game.language ?? "en"
+    const system = playerSystemPrompt(language)
+    const promptText = playerPrompt(data.prompt.text, language)
 
     const answers = data.answers ?? []
     const answeredModels = new Set(answers.map((a) => a.model))
@@ -213,7 +215,8 @@ export const generateModelVotes = internalAction({
       label: String(i + 1),
     }))
 
-    const system = voteSystemPrompt(labeledAnswers.length)
+    const language = data.game.language ?? "en"
+    const system = voteSystemPrompt(labeledAnswers.length, language)
     const promptText = votePrompt(
       data.prompt.text,
       labeledAnswers.map((a) => ({ label: a.label, text: a.text }))

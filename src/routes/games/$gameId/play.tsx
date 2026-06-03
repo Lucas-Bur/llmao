@@ -46,7 +46,7 @@ function RouteComponent() {
   const game = usePlayGame(gameId)
 
   const [displayName, setDisplayName] = useState(game.globalName)
-  const [nameSubmitted, setNameSubmitted] = useState(() => !!game.globalName)
+  const [nameSubmitted, setNameSubmitted] = useState(() => !!game.currentPlayer)
   const [isEditingName, setIsEditingName] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [hasUserVoted, setHasUserVoted] = useState(false)
