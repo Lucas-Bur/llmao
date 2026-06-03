@@ -2,7 +2,7 @@ import { lookupModelName } from "@/constants/models"
 
 type ParticipantStatus = "done" | "pending" | "failed"
 
-type Participant = {
+export type Participant = {
   id: string
   label: string
   status: ParticipantStatus

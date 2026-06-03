@@ -44,7 +44,7 @@ Elo-Wertung pro Modell, aktualisiert nach Spielende via Multi-Player-Elo.
 
 ## Spiel-Lebenszyklus (Game State Machine)
 
-Die interne Implementierung des Spiel-Lebenszyklus. Ein tiefer Modul (`convex/state-machine.ts`), der alle Status-Übergänge, Seiteneffekte (Scheduling von LLM-Aufrufen) und automatischen Weiterschaltlogik kapselt. Die öffentlichen Mutationen in `convex/games.ts` sind dünne Adapter, die an dieses Modul delegieren.
+Die interne Implementierung des Spiel-Lebenszyklus. Ein tiefer Modul (`convex/state_machine.ts`), der alle Status-Übergänge, Seiteneffekte (Scheduling von LLM-Aufrufen) und automatischen Weiterschaltlogik kapselt. Die öffentlichen Mutationen in `convex/games.ts` sind dünne Adapter, die an dieses Modul delegieren.
 
 ### Kern-Interface
 

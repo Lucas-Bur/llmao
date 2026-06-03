@@ -23,7 +23,7 @@ import {
   handleUserVote,
   handleVoteFailure,
   handleVoteResult,
-} from "./state-machine"
+} from "./state_machine"
 import { PAST_STATUSES } from "./lifecycle"
 
 const advanceModeValidator = v.union(

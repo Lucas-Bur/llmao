@@ -15,6 +15,7 @@ import type * as orchestrators from "../orchestrators.js";
 import type * as players from "../players.js";
 import type * as prompts from "../prompts.js";
 import type * as ratings from "../ratings.js";
+import type * as state_machine from "../state_machine.js";
 import type * as utils from "../utils.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   players: typeof players;
   prompts: typeof prompts;
   ratings: typeof ratings;
+  state_machine: typeof state_machine;
   utils: typeof utils;
 }>;
 
