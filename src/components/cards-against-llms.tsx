@@ -1,17 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
-import type { Id } from "convex/_generated/dataModel"
+import type { Doc, Id } from "convex/_generated/dataModel"
 import { Smartphone } from "lucide-react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, type ReactNode } from "react"
 
 import { BlackCard } from "./cah/black-card"
 import { PhaseProgress } from "./cah/phase-progress"
 import { GameStepper } from "./cah/game-stepper"
 import { QRCode } from "./qr-code"
 import { WhiteCard } from "./cah/white-card"
-
 import { Button } from "@/components/ui/button"
 import { resolveDisplayName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
@@ -23,13 +22,158 @@ import {
   PodiumCards,
   ResultBanner,
 } from "./cah/result-podium"
+import type { Participant } from "@/hooks/use-game-progress"
 
+type ProgressData = {
+  participants: Participant[]
+  timerDeadline: number | undefined
+}
 
-const SHOW_CARDS_STATUSES = new Set([
-  "voting",
-  "resolved",
-  "locked",
-])
+function MainLayout({
+  children,
+}: {
+  children: ReactNode
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col p-6">
+      {children}
+    </div>
+  )
+}
+
+function Sidebar({
+  origin,
+  gameId,
+  progress,
+}: {
+  origin: string
+  gameId: string
+  progress?: {
+    label: string
+  } & ProgressData
+}) {
+  const navigate = useNavigate()
+
+  return (
+    <div className="flex w-56 flex-col gap-4 border-l p-4">
+      {progress && (
+        <PhaseProgress
+          label={progress.label}
+          variant="sidebar"
+          participants={progress.participants}
+          timerDeadline={progress.timerDeadline}
+        />
+      )}
+      <div className="flex flex-col items-center gap-3">
+        <QRCode url={`${origin}/games/${gameId}/play`} size={160} />
+        <p className="text-center text-xs text-muted-foreground">
+          Scan the code with your phone
+        </p>
+        <Button
+          variant="default"
+          className="w-full gap-2"
+          onClick={() =>
+            navigate({
+              to: "/games/$gameId/play",
+              params: { gameId },
+            })
+          }
+        >
+          <Smartphone className="h-4 w-4" />
+          Join now
+        </Button>
+        <p className="text-center text-[10px] text-muted-foreground">
+          First visitor becomes host
+          <br />
+          and can configure the game
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function VotingCardGrid({
+  allAnswers,
+  players,
+}: {
+  allAnswers: Doc<"answers">[]
+  players: Doc<"players">[]
+}) {
+  if (allAnswers.length === 0) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <WhiteCard
+            key={`loading-${i}`}
+            id={`loading-${i}`}
+            text=""
+            model=""
+            isFlipped={false}
+            isSelected={false}
+            isLoading
+            hasVoted={false}
+            canSelect={false}
+            onFlip={() => {}}
+            onSelect={() => {}}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {allAnswers.map((answer) => (
+        <WhiteCard
+          key={answer._id}
+          id={answer._id}
+          text={answer.text}
+          model={resolveDisplayName(answer.model, players)}
+          isFlipped
+          isSelected={false}
+          isLoading={false}
+          hasVoted={false}
+          canSelect={false}
+          onFlip={() => {}}
+          onSelect={() => {}}
+        />
+      ))}
+    </div>
+  )
+}
+
+function PodiumView({
+  sorted,
+  revealed,
+  prompt,
+}: {
+  sorted: ReturnType<typeof sortByVotes>
+  revealed: ReturnType<typeof usePodiumReveal>
+  prompt: Doc<"prompts"> | null | undefined
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 items-center justify-center">
+        <div className="flex w-full max-w-5xl items-stretch justify-center gap-10">
+          <div className="flex w-64 shrink-0 self-stretch">
+            <div className="flex w-full flex-col [&>div]:min-h-full [&>div]:h-full">
+              <BlackCard
+                text={prompt?.text}
+                model={prompt?.model}
+                isLoading={false}
+                showModel
+              />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <PodiumCards sorted={sorted} revealed={revealed} />
+          </div>
+        </div>
+      </div>
+      <ResultBanner sorted={sorted} revealed={revealed} />
+    </div>
+  )
+}
 
 export default function TVDisplay({
   gameId,
@@ -37,11 +181,10 @@ export default function TVDisplay({
   const navigate = useNavigate()
   const { setBreadcrumb } = useBreadcrumb()
   const roomName = useUniqueNameFromId(gameId)
-
   const { origin } = useRouter()
 
   const { data: gameObject, isLoading } = useQuery(
-    convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> })
+    convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> }),
   )
 
   useEffect(() => {
@@ -52,7 +195,7 @@ export default function TVDisplay({
       >
         All Games
         <span className="ml-1 text-muted-foreground/50">/ {roomName}</span>
-      </Link>
+      </Link>,
     )
     return () => setBreadcrumb(null)
   }, [gameId, roomName, setBreadcrumb])
@@ -82,32 +225,7 @@ export default function TVDisplay({
   const votes = gameObject.votes ?? []
   const players = gameObject.players ?? []
   const llmEvents = gameObject.llmEvents ?? []
-  const showCards = SHOW_CARDS_STATUSES.has(game.status)
-
-  // Staggered card reveal when voting → resolved/locked
-  const [revealedCardIds, setRevealedCardIds] = useState<Set<string>>(new Set())
-  const prevStatusRef = useRef(game.status)
-
-  useEffect(() => {
-    const prev = prevStatusRef.current
-    prevStatusRef.current = game.status
-
-    const isNowResolved = game.status === "resolved" || game.status === "locked"
-    const wasVoting = prev === "voting"
-
-    if (wasVoting && isNowResolved && allAnswers.length > 0) {
-      const ids = allAnswers.map((a) => a._id)
-      ids.forEach((id, i) => {
-        setTimeout(() => {
-          setRevealedCardIds((curr) => new Set([...curr, id]))
-        }, i * 800)
-      })
-    } else if (isNowResolved && revealedCardIds.size === 0) {
-      setRevealedCardIds(new Set(allAnswers.map((a) => a._id)))
-    } else if (game.status === "voting") {
-      setRevealedCardIds(new Set())
-    }
-  }, [game.status, allAnswers])
+  const isResolved = game.status === "resolved" || game.status === "locked"
 
   const {
     voteCounts,
@@ -123,39 +241,39 @@ export default function TVDisplay({
     llmEvents,
   })
 
-  const isResolved = game.status === "resolved" || game.status === "locked"
-  const sorted = isResolved ? sortByVotes(allAnswers, voteCounts, voterNames, players) : []
+  const sorted = isResolved
+    ? sortByVotes(allAnswers, voteCounts, voterNames, players)
+    : []
   const revealed = usePodiumReveal(game.status, sorted)
+
+  const sidebarProgress = (() => {
+    if (game.status === "responding") {
+      return {
+        label: "Answers" as const,
+        participants: respondParticipants,
+        timerDeadline,
+      }
+    }
+    if (game.status === "voting") {
+      return {
+        label: "Voting" as const,
+        participants: voteParticipants,
+        timerDeadline,
+      }
+    }
+    return undefined
+  })()
 
   return (
     <div className="flex min-h-[calc(100svh-var(--header-height))] w-full overflow-x-hidden bg-background">
       <div className="flex min-w-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col p-6">
+        <MainLayout>
           <div className="mb-4 flex justify-center">
             <GameStepper status={game.status} />
           </div>
 
           {isResolved ? (
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex min-w-0 flex-1 items-center justify-center">
-                <div className="flex w-full max-w-5xl items-stretch justify-center gap-10">
-                  <div className="flex w-64 shrink-0 self-stretch">
-                    <div className="flex w-full flex-col [&>div]:min-h-full [&>div]:h-full">
-                      <BlackCard
-                        text={prompt?.text}
-                        model={prompt?.model}
-                        isLoading={false}
-                        showModel
-                      />
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <PodiumCards sorted={sorted} revealed={revealed} />
-                  </div>
-                </div>
-              </div>
-              <ResultBanner sorted={sorted} revealed={revealed} />
-            </div>
+            <PodiumView sorted={sorted} revealed={revealed} prompt={prompt} />
           ) : (
             <>
               <div className="mb-6">
@@ -178,98 +296,19 @@ export default function TVDisplay({
                 </div>
               )}
 
-              {showCards && game.status === "voting" && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {allAnswers.length === 0
-                    ? Array.from({ length: 3 }).map((_, i) => (
-                        <WhiteCard
-                          key={`loading-${i}`}
-                          id={`loading-${i}`}
-                          text=""
-                          model=""
-                          isFlipped={false}
-                          isSelected={false}
-                          isLoading
-                          hasVoted={false}
-                          canSelect={false}
-                          onFlip={() => {}}
-                          onSelect={() => {}}
-                        />
-                      ))
-                    : allAnswers.map((answer) => (
-                        <WhiteCard
-                          key={answer._id}
-                          id={answer._id}
-                          text={answer.text}
-                          model={resolveDisplayName(answer.model, players)}
-                          isFlipped={revealedCardIds.has(answer._id)}
-                          isSelected={false}
-                          isLoading={false}
-                          voteCount={voteCounts[answer._id]}
-                          voterNames={voterNames[answer._id]}
-                          hasVoted={game.status !== "voting"}
-                          canSelect={false}
-                          onFlip={() => {}}
-                          onSelect={() => {}}
-                        />
-                      ))}
-                  </div>
+              {game.status === "voting" && (
+                <VotingCardGrid allAnswers={allAnswers} players={players} />
               )}
             </>
           )}
+        </MainLayout>
 
-        </div>
-
-        {/* Right side: sidebar */}
-        <div className="flex w-56 flex-col gap-4 border-l p-4">
-          {/* Player progress */}
-          {game.status === "responding" && (
-            <PhaseProgress
-              label="Answers"
-              variant="sidebar"
-              participants={respondParticipants}
-              timerDeadline={timerDeadline}
-            />
-          )}
-
-          {game.status === "voting" && (
-            <PhaseProgress
-              label="Voting"
-              variant="sidebar"
-              participants={voteParticipants}
-              timerDeadline={timerDeadline}
-            />
-          )}
-
-          {/* QR code + join */}
-          <div className="flex flex-col items-center gap-3">
-            <QRCode url={`${origin}/games/${gameId}/play`} size={160} />
-            <p className="text-center text-xs text-muted-foreground">
-              Scan the code with your phone
-            </p>
-            <Button
-              variant="default"
-              className="w-full gap-2"
-              onClick={() =>
-                navigate({
-                  to: "/games/$gameId/play",
-                  params: { gameId },
-                })
-              }
-            >
-              <Smartphone className="h-4 w-4" />
-              Join now
-            </Button>
-            <p className="text-center text-[10px] text-muted-foreground">
-              First visitor becomes host
-              <br />
-              and can configure the game
-            </p>
-          </div>
-        </div>
+        <Sidebar
+          origin={origin ?? window.location.origin}
+          gameId={gameId}
+          progress={sidebarProgress}
+        />
       </div>
     </div>
   )
 }
-
-

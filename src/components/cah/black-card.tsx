@@ -25,7 +25,7 @@ export function BlackCard({
         </CardContent>
         <CardFooter className="border-muted-foreground p-4 py-2">
           <span className="text-xs text-muted-foreground">
-            Prompt wird generiert...
+            Generating prompt...
           </span>
         </CardFooter>
       </Card>
@@ -36,7 +36,7 @@ export function BlackCard({
     <Card className="flex h-64 w-full flex-col rounded-none border-zinc-800 bg-zinc-950">
       <CardContent className="flex flex-1 items-center p-6">
         <p className="text-lg leading-relaxed font-semibold text-white">
-          {text ?? "Noch kein Prompt vorhanden."}
+          {text ?? "No prompt yet."}
         </p>
       </CardContent>
       {showModel && model && (

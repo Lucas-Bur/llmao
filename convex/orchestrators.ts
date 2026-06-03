@@ -43,31 +43,74 @@ async function invokeText(
   model: string,
   systemPrompt: string,
   prompt: string,
-  validate: (value: string) => boolean = (value) => value.length > 0
+  validate: (value: string) => boolean = (value) => value.length > 0,
+  label = "unknown",
 ) {
-  if (!process.env.OPENROUTER_API_KEY) {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY not configured")
   }
+
+  console.log("INFO", label, `API key present (${apiKey.length} chars, starts: ${apiKey.slice(0, 4)}...)`)
+  console.log("INFO", label, `Model: ${model}`)
 
   return await withRetry(
     async () => {
       const abortController = new AbortController()
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        console.log("WARN", label, "Request timed out after 30s, aborting")
         abortController.abort()
-      }, 10_000)
+      }, 30_000)
 
-      const result = (await chat({
-        adapter: openRouterText(model as ModelId),
-        stream: false,
-        messages: [{ role: "user", content: prompt }],
-        systemPrompts: [systemPrompt],
-        temperature: 1.1,
-        abortController,
-      })) as string
-      return cleanResponse(result)
+      try {
+        console.log("INFO", label, "Starting stream...")
+
+        const stream = chat({
+          adapter: openRouterText(model as ModelId),
+          messages: [{ role: "user", content: prompt }],
+          systemPrompts: [systemPrompt],
+          temperature: 1.1,
+          abortController,
+        })
+
+        let result = ""
+        for await (const chunk of stream as AsyncIterable<{ type: string; delta?: string; error?: { message: string; code: string } }>) {
+          if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
+            result += chunk.delta
+          }
+          if (chunk.type === "RUN_ERROR") {
+            const err = chunk.error
+            console.log("ERROR", label, "OpenRouter RUN_ERROR:", err)
+            throw new Error(
+              `OpenRouter error (${err?.code ?? "no code"}): ${err?.message ?? "no message"}. API key length: ${apiKey.length} chars, starts with: ${apiKey.slice(0, 8)}...`,
+            )
+          }
+        }
+
+        clearTimeout(timeoutId)
+
+        console.log("INFO", label, `Stream finished, collected ${result.length} chars`)
+
+        if (result.length === 0) {
+          throw new Error(
+            `Model ${model} returned no text content — check OpenRouter credits and model availability`,
+          )
+        }
+
+        const cleaned = cleanResponse(result)
+        console.log("INFO", label, `Cleaned: "${cleaned.slice(0, 200)}"`)
+        return cleaned
+      } catch (error) {
+        clearTimeout(timeoutId)
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw new Error(`Request to ${model} timed out after 30s`)
+        }
+        throw error
+      }
     },
     validate,
-    3
+    3,
+    label,
   )
 }
 
@@ -90,7 +133,7 @@ async function runModelStage(
   rethrow?: boolean,
 ): Promise<void> {
   try {
-    const raw = await invokeText(model, system, prompt, validate)
+    const raw = await invokeText(model, system, prompt, validate, model)
     await handlers.onSuccess(ctx, raw, raw)
   } catch (error) {
     await handlers.onFailure(error)

@@ -309,6 +309,8 @@ export async function handleAnswerFailure(
     promptText: args.promptText,
     errorMessage: args.errorMessage,
   })
+
+  await checkAdvance(ctx, args.gameId)
 }
 
 export type VoteResult = {
@@ -369,6 +371,8 @@ export async function handleVoteFailure(
     promptText,
     errorMessage,
   })
+
+  await checkAdvance(ctx, gameId)
 }
 
 export async function handleUserAnswer(
@@ -537,14 +541,23 @@ async function checkAdvance(ctx: MutationCtx, gameId: Id<"games">) {
   if (!game || game.advanceMode === "manual") return
 
   if (game.status === "responding") {
-    const [answers, humanPlayers] = await Promise.all([
+    const [answers, humanPlayers, llmEvents] = await Promise.all([
       fetchByGameId(ctx, gameId, "answers"),
       fetchByGameId(ctx, gameId, "players"),
+      ctx.db
+        .query("llmEvents")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect(),
     ])
 
     const answeredModels = new Set(answers.map((a) => a.model))
-    const allAIAnswered = game.playerModels.every((m) =>
-      answeredModels.has(m),
+    const failedModels = new Set(
+      llmEvents
+        .filter((e) => e.stage === "answer" && !e.success)
+        .map((e) => e.model),
+    )
+    const allAIAnswered = game.playerModels.every(
+      (m) => answeredModels.has(m) || failedModels.has(m),
     )
     const allHumansAnswered = humanPlayers.every((p) =>
       answeredModels.has(`user:${p.playerId}`),
@@ -554,14 +567,23 @@ async function checkAdvance(ctx: MutationCtx, gameId: Id<"games">) {
       await advanceToVoting(ctx, gameId, game)
     }
   } else if (game.status === "voting") {
-    const [votes, humanPlayers] = await Promise.all([
+    const [votes, humanPlayers, llmEvents] = await Promise.all([
       fetchByGameId(ctx, gameId, "votes"),
       fetchByGameId(ctx, gameId, "players"),
+      ctx.db
+        .query("llmEvents")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect(),
     ])
 
     const existingVoterIds = new Set(votes.map((v) => v.voterId))
-    const allAIVoted = game.voterModels.every((m) =>
-      existingVoterIds.has(`model:${m}`),
+    const failedVoterIds = new Set(
+      llmEvents
+        .filter((e) => e.stage === "vote" && !e.success)
+        .map((e) => `model:${e.model}`),
+    )
+    const allAIVoted = game.voterModels.every(
+      (m) => existingVoterIds.has(`model:${m}`) || failedVoterIds.has(`model:${m}`),
     )
     const allHumansVoted = humanPlayers.every((p) =>
       existingVoterIds.has(`user:${p.playerId}`),

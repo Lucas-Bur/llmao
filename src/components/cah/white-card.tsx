@@ -40,7 +40,7 @@ export function WhiteCard({
         </CardContent>
         <CardFooter className="p-5 pt-0">
           <span className="text-xs text-muted-foreground">
-            Wird generiert...
+            Generating...
           </span>
         </CardFooter>
       </Card>
@@ -73,7 +73,7 @@ export function WhiteCard({
           <Card className="flex h-full w-full flex-col rounded-none border-border bg-muted transition-colors hover:border-foreground/50">
             <CardContent className="flex flex-1 flex-col items-center justify-center p-5">
               <span className="text-sm font-medium text-foreground">
-                Klicken zum Aufdecken
+                Click to reveal
               </span>
             </CardContent>
           </Card>

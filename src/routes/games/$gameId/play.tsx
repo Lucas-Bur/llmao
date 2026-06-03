@@ -132,6 +132,8 @@ function RouteComponent() {
         hostName={game.allPlayers.find((p) => p.isHost)?.displayName}
         players={game.allPlayers}
         playerId={game.playerId}
+        playerModels={game.game.playerModels}
+        voterModels={game.game.voterModels}
       >
         <PlayerHeader
           roomName={game.roomName}

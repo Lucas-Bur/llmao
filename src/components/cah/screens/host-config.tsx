@@ -4,10 +4,10 @@ import { Pencil } from "lucide-react"
 import { AVAILABLE_MODELS, lookupModelName } from "@/constants/models"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PlayerBadgeList } from "@/components/cah/player-badge-list"
+import { ModelCheckboxList } from "@/components/cah/model-checkbox-list"
 import {
   Select,
   SelectContent,
@@ -110,47 +110,25 @@ export function HostConfigScreen({
 
       <section className="mb-4">
         <h2 className="mb-2 text-sm font-medium">AI Players</h2>
-        {AVAILABLE_MODELS.map((model) => (
-          <div key={model} className="flex items-center gap-2 py-1">
-            <Checkbox
-              id={`player-${model}`}
-              checked={game.playerModels.includes(model)}
-              onCheckedChange={async (checked) => {
-                const updated = checked
-                  ? [...game.playerModels, model]
-                  : game.playerModels.filter((m) => m !== model)
-                await updateGame({ gameId, playerModels: updated })
-              }}
-            />
-            <Label htmlFor={`player-${model}`} className="text-sm">
-              {lookupModelName(model)}
-            </Label>
-          </div>
-        ))}
-        <p className="mt-1 text-xs text-muted-foreground">
-          + You can play as a human
-        </p>
+        <ModelCheckboxList
+          idPrefix="player"
+          selectedModels={game.playerModels}
+          onChange={async (updated) =>
+            await updateGame({ gameId, playerModels: updated })
+          }
+          footer="+ You can play as a human"
+        />
       </section>
 
       <section className="mb-4">
         <h2 className="mb-2 text-sm font-medium">AI Voters</h2>
-        {AVAILABLE_MODELS.map((model) => (
-          <div key={model} className="flex items-center gap-2 py-1">
-            <Checkbox
-              id={`voter-${model}`}
-              checked={game.voterModels.includes(model)}
-              onCheckedChange={async (checked) => {
-                const updated = checked
-                  ? [...game.voterModels, model]
-                  : game.voterModels.filter((m) => m !== model)
-                await updateGame({ gameId, voterModels: updated })
-              }}
-            />
-            <Label htmlFor={`voter-${model}`} className="text-sm">
-              {lookupModelName(model)}
-            </Label>
-          </div>
-        ))}
+        <ModelCheckboxList
+          idPrefix="voter"
+          selectedModels={game.voterModels}
+          onChange={async (updated) =>
+            await updateGame({ gameId, voterModels: updated })
+          }
+        />
       </section>
 
       <section className="mb-6">

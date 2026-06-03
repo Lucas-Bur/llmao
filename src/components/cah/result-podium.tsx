@@ -99,7 +99,7 @@ export function PodiumCards({
         {first && (
           <div className="relative">
             <div className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-yellow-500 px-4 py-1 text-xs font-bold text-white">
-              #1 — {first.voteCount} Stimme{first.voteCount !== 1 ? "n" : ""}
+              #1 — {first.voteCount} vote{first.voteCount !== 1 ? "s" : ""}
             </div>
             <div className="ring-2 ring-yellow-400/50">
               <WhiteCard
