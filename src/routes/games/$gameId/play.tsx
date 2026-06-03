@@ -4,13 +4,14 @@ import { Suspense, useState } from "react"
 
 import { BlackCard } from "@/components/cah/black-card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 
 import { usePlayGame } from "@/hooks/use-play-game"
 import { AnsweringScreen } from "@/components/cah/screens/answering"
 import { HostConfigScreen } from "@/components/cah/screens/host-config"
 import { VotingScreen } from "@/components/cah/screens/voting"
+import { NameInputScreen } from "@/components/cah/screens/name-input"
+import { WaitingScreen } from "@/components/cah/screens/waiting"
+import { ResultScreen } from "@/components/cah/screens/result"
 
 const STATUS_LABEL: Record<string, string> = {
   created: "Configuration",
@@ -82,105 +83,22 @@ function RouteComponent() {
     }
   }
 
-  const playerHeader = (
-    <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-      {game.roomName} —{" "}
-      <span className="font-medium text-foreground">{displayName}</span>
-      {game.isHost && (
-        <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0">
-          Host
-        </Badge>
-      )}
-      <button
-        type="button"
-        onClick={() => setIsEditingName(true)}
-        className="text-muted-foreground hover:text-foreground"
-        aria-label="Change name"
-      >
-        <Pencil className="h-3 w-3" />
-      </button>
-    </p>
-  )
-
-  const playerList = (
-    <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-      <Users className="h-3 w-3" />
-      {game.allPlayers.length === 0 ? (
-        <span>—</span>
-      ) : (
-        game.allPlayers.map((p, i) => (
-          <span key={p.playerId}>
-            {i > 0 && <span className="mx-1">·</span>}
-            <span
-              className={
-                p.playerId === game.playerId
-                  ? "font-medium text-foreground"
-                  : undefined
-              }
-            >
-              {p.displayName}
-              {p.isHost && " 👑"}
-            </span>
-          </span>
-        ))
-      )}
-    </div>
-  )
-
-  // ───── Name Input / Edit Screen ─────
-
   if (!nameSubmitted || isEditingName) {
     return (
-      <div className="mx-auto max-w-sm p-6">
-        <h1 className="mb-2 text-lg font-semibold">{game.roomName}</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          {isEditingName ? "Change your name" : "Enter your name to join"}
-        </p>
-        <Input
-          placeholder="Your name"
-          value={displayName}
-          onChange={(e) => {
-            setDisplayName(e.target.value)
-            setJoinError(null)
-          }}
-          className="mb-4"
-        />
-        {joinError && (
-          <p className="mb-4 text-sm text-destructive">{joinError}</p>
-        )}
-        <Button
-          className="w-full"
-          disabled={!displayName.trim() || game.isJoining}
-          onClick={isEditingName ? handleNameChange : handleJoin}
-        >
-          {isEditingName ? "Save" : "Join"}
-        </Button>
-      </div>
+      <NameInputScreen
+        roomName={game.roomName}
+        displayName={displayName}
+        isEditing={isEditingName}
+        isJoining={game.isJoining}
+        joinError={joinError}
+        onChange={(v) => {
+          setDisplayName(v)
+          setJoinError(null)
+        }}
+        onSubmit={isEditingName ? handleNameChange : handleJoin}
+      />
     )
   }
-
-  // ───── Non-Host Waiting Screen ─────
-
-  if (game.game.status === "created" && !game.isHost) {
-    return (
-      <div className="mx-auto max-w-lg p-4">
-        {playerHeader}
-        <div className="flex h-48 flex-col items-center justify-center gap-3 border border-dashed">
-          <p className="text-sm text-muted-foreground">
-            Waiting for host...
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {game.allPlayers.find((p) => p.isHost)?.displayName ??
-              "The host"}{" "}
-            is configuring the game
-          </p>
-        </div>
-        {playerList}
-      </div>
-    )
-  }
-
-  // ───── Host Config Screen ─────
 
   if (game.game.status === "created" && game.isHost) {
     return (
@@ -199,11 +117,31 @@ function RouteComponent() {
     )
   }
 
-  // ───── Playing Screens ─────
+  if (game.game.status === "created") {
+    return (
+      <WaitingScreen
+        hostName={game.allPlayers.find((p) => p.isHost)?.displayName}
+        players={game.allPlayers}
+        playerId={game.playerId}
+      >
+        <PlayerHeader
+          roomName={game.roomName}
+          displayName={displayName}
+          isHost={game.isHost}
+          onEditName={() => setIsEditingName(true)}
+        />
+      </WaitingScreen>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-lg p-4">
-      {playerHeader}
+      <PlayerHeader
+        roomName={game.roomName}
+        displayName={displayName}
+        isHost={game.isHost}
+        onEditName={() => setIsEditingName(true)}
+      />
 
       <div className="mb-4">
         <Badge variant="secondary" className="rounded-none text-xs">
@@ -211,7 +149,10 @@ function RouteComponent() {
         </Badge>
       </div>
 
-      {playerList}
+      <PlayerList
+        players={game.allPlayers}
+        playerId={game.playerId}
+      />
 
       <div className="mb-4">
         <BlackCard
@@ -266,27 +207,82 @@ function RouteComponent() {
       )}
 
       {(game.game.status === "resolved" || game.game.status === "locked") && (
-        <div className="space-y-3">
-          <div className="rounded-none border bg-muted p-4 text-center">
-            <p className="text-sm font-medium text-foreground">
-              Game over!
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              View the results on the big screen.
-            </p>
-          </div>
-          {game.isHost && (
-            <Button
-              className="w-full rounded-none"
-              disabled={game.isResetting}
-              onClick={async () => {
-                await game.resetGame({ gameId: game.gameId })
-              }}
+        <ResultScreen
+          isHost={game.isHost}
+          isResetting={game.isResetting}
+          onReset={async () => {
+            await game.resetGame({ gameId: game.gameId })
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shared UI fragments
+// ---------------------------------------------------------------------------
+
+function PlayerHeader({
+  roomName,
+  displayName,
+  isHost,
+  onEditName,
+}: {
+  roomName: string
+  displayName: string
+  isHost: boolean
+  onEditName: () => void
+}) {
+  return (
+    <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+      {roomName} —{" "}
+      <span className="font-medium text-foreground">{displayName}</span>
+      {isHost && (
+        <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0">
+          Host
+        </Badge>
+      )}
+      <button
+        type="button"
+        onClick={onEditName}
+        className="text-muted-foreground hover:text-foreground"
+        aria-label="Change name"
+      >
+        <Pencil className="h-3 w-3" />
+      </button>
+    </p>
+  )
+}
+
+function PlayerList({
+  players,
+  playerId,
+}: {
+  players: { playerId: string; displayName: string; isHost: boolean }[]
+  playerId: string
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+      <Users className="h-3 w-3" />
+      {players.length === 0 ? (
+        <span>—</span>
+      ) : (
+        players.map((p, i) => (
+          <span key={p.playerId}>
+            {i > 0 && <span className="mx-1">·</span>}
+            <span
+              className={
+                p.playerId === playerId
+                  ? "font-medium text-foreground"
+                  : undefined
+              }
             >
-              {game.isResetting ? "Resetting..." : "Next Round →"}
-            </Button>
-          )}
-        </div>
+              {p.displayName}
+              {p.isHost && " 👑"}
+            </span>
+          </span>
+        ))
       )}
     </div>
   )
