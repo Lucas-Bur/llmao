@@ -13,6 +13,7 @@ import {
   mutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { applyMultiPlayerElo } from "./ratings"
@@ -454,37 +455,70 @@ export const resetGame = mutation({
 // Queries
 // ---------------------------------------------------------------------------
 
+type GameInclude = {
+  prompt?: boolean
+  answers?: boolean
+  votes?: boolean
+  players?: boolean
+  llmEvents?: boolean
+}
+
+type GameDetails = {
+  game: Doc<"games">
+  prompt?: Doc<"prompts"> | null
+  answers?: Doc<"answers">[]
+  votes?: Doc<"votes">[]
+  players?: Doc<"players">[]
+  llmEvents?: Doc<"llmEvents">[]
+}
+
+async function fetchGameDetails(
+  ctx: QueryCtx,
+  gameId: Id<"games">,
+  include: GameInclude,
+): Promise<GameDetails | null> {
+  const game = await ctx.db.get("games", gameId)
+  if (!game) return null
+
+  const result: GameDetails = { game }
+
+  if (include.prompt && game.promptId) {
+    result.prompt = await ctx.db.get("prompts", game.promptId)
+  }
+  if (include.answers) {
+    result.answers = await ctx.db
+      .query("answers")
+      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+      .collect()
+  }
+  if (include.votes) {
+    result.votes = await ctx.db
+      .query("votes")
+      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+      .collect()
+  }
+  if (include.players) {
+    result.players = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+      .collect()
+  }
+  if (include.llmEvents) {
+    result.llmEvents = await ctx.db
+      .query("llmEvents")
+      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+      .collect()
+  }
+
+  return result
+}
+
 export const getGame = query({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) return
-
-    const prompt = game.promptId
-      ? await ctx.db.get("prompts", game.promptId)
-      : undefined
-
-    const answers = await ctx.db
-      .query("answers")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const votes = await ctx.db
-      .query("votes")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const players = await ctx.db
-      .query("players")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const llmEvents = await ctx.db
-      .query("llmEvents")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    return { game, prompt, answers, votes, players, llmEvents }
+    return await fetchGameDetails(ctx, args.gameId, {
+      prompt: true, answers: true, votes: true, players: true, llmEvents: true,
+    })
   },
 })
 
@@ -798,31 +832,20 @@ export const finalizeResolvedGame = internalMutation({
 // Internal queries
 // ---------------------------------------------------------------------------
 
-export const getGameInternal = internalQuery({
-  args: { gameId: v.id("games") },
+export const getGameWithDetails = internalQuery({
+  args: {
+    gameId: v.id("games"),
+    include: v.optional(
+      v.object({
+        prompt: v.optional(v.boolean()),
+        answers: v.optional(v.boolean()),
+        votes: v.optional(v.boolean()),
+        players: v.optional(v.boolean()),
+        llmEvents: v.optional(v.boolean()),
+      })
+    ),
+  },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) return
-
-    const prompt = game.promptId
-      ? await ctx.db.get("prompts", game.promptId)
-      : undefined
-
-    const answers = await ctx.db
-      .query("answers")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const votes = await ctx.db
-      .query("votes")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const players = await ctx.db
-      .query("players")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    return { game, prompt, answers, votes, players }
+    return await fetchGameDetails(ctx, args.gameId, args.include ?? {})
   },
 })

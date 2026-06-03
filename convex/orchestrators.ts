@@ -19,9 +19,19 @@ import { cleanResponse, shuffle, withRetry } from "./utils"
 async function loadGameData(
   ctx: ActionCtx,
   gameId: Id<"games">,
-  expectedStatus?: Doc<"games">["status"]
+  expectedStatus?: Doc<"games">["status"],
+  include: {
+    prompt?: boolean
+    answers?: boolean
+    votes?: boolean
+    players?: boolean
+    llmEvents?: boolean
+  } = {},
 ) {
-  const data = await ctx.runQuery(internal.games.getGameInternal, { gameId })
+  const data = await ctx.runQuery(internal.games.getGameWithDetails, {
+    gameId,
+    include,
+  })
   if (!data) throw new Error("Game not found")
   if (expectedStatus && data.game.status !== expectedStatus) return null
   return data
@@ -128,14 +138,18 @@ export const generatePrompt = internalAction({
 export const generateAnswers = internalAction({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const data = await loadGameData(ctx, args.gameId, "responding")
+    const data = await loadGameData(ctx, args.gameId, "responding", {
+      prompt: true,
+      answers: true,
+    })
     if (!data) return
     if (!data.prompt) throw new Error("Incomplete game state")
 
     const system = playerSystemPrompt()
     const promptText = playerPrompt(data.prompt.text)
 
-    const answeredModels = new Set(data.answers.map((a) => a.model))
+    const answers = data.answers ?? []
+    const answeredModels = new Set(answers.map((a) => a.model))
     const pendingModels = data.game.playerModels.filter(
       (m) => !answeredModels.has(m)
     )
@@ -171,13 +185,18 @@ export const generateAnswers = internalAction({
 export const generateModelVotes = internalAction({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const data = await loadGameData(ctx, args.gameId, "voting")
+    const data = await loadGameData(ctx, args.gameId, "voting", {
+      prompt: true,
+      answers: true,
+      votes: true,
+    })
     if (!data) return
-    if (!data.prompt || data.answers.length < 2) {
+    if (!data.prompt || !data.answers || data.answers.length < 2) {
       throw new Error("Incomplete voting state")
     }
 
-    const existingVoterIds = new Set(data.votes.map((vote) => vote.voterId))
+    const votes = data.votes ?? []
+    const existingVoterIds = new Set(votes.map((vote) => vote.voterId))
     const pendingVoters = data.game.voterModels.filter(
       (m) => !existingVoterIds.has(`model:${m}`)
     )

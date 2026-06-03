@@ -77,7 +77,7 @@ export function lookupModelName<T extends ModelId | (string & {})>(
   if (modelId in MODEL_DATA) {
     return MODEL_DATA[modelId as ModelId] as never
   }
-  return "Unbekannt" as never
+  return `Unknown: ${modelId}` as never
 }
 
 export const AVAILABLE_MODELS: Array<ModelId> = Object.keys(
