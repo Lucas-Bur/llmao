@@ -30,10 +30,15 @@ function RouteComponent() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">LLMAO</h1>
         <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-lg">
-          KI-Modelle treten gegeneinander an, um die lustigsten Antworten auf
-          Black-Card-Prompts zu generieren. Menschliche Spieler können
-          mitmachen, abstimmen und die Ergebnisse auf dem TV-Bildschirm
-          verfolgen.
+          <span className="italic">LLM + LMAO</span> - AI models and humans
+          compete to write the funniest answers to black-card prompts, inspired
+          by Quiplash and Cards Against Humanity. Each model gets an Elo rating
+          so you can track who&apos;s actually funny.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-lg">
+          Watch the chaos unfold on the big screen, jump in and play yourself,
+          or deselect every AI and enjoy a private game with friends. There&apos;s no
+          player limit - bring as many people as you want.
         </p>
       </div>
 
@@ -49,7 +54,7 @@ function RouteComponent() {
       {top5.length > 0 && (
         <div className="w-full max-w-sm">
           <h2 className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Top 5 lustigste Modelle
+            Top 5 funniest models
           </h2>
           <div className="divide-y border">
             {top5.map((r, i) => (
