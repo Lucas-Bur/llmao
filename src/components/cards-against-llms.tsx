@@ -17,6 +17,7 @@ import { resolveDisplayName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useGameProgress } from "@/hooks/use-game-progress"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
+import { ResultPodium } from "./cah/result-podium"
 
 
 const SHOW_CARDS_STATUSES = new Set([
@@ -32,7 +33,7 @@ export default function TVDisplay({
   const { setBreadcrumb } = useBreadcrumb()
   const roomName = useUniqueNameFromId(gameId)
 
-  const {origin}= useRouter()
+  const { origin } = useRouter()
 
   const { data: gameObject, isLoading } = useQuery(
     convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> })
@@ -117,10 +118,12 @@ export default function TVDisplay({
     llmEvents,
   })
 
+  const isResolved = game.status === "resolved" || game.status === "locked"
+
   return (
-    <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
-      <div className="flex flex-1">
-        <div className="flex flex-1 flex-col p-6">
+    <div className="flex min-h-[calc(100svh-var(--header-height))] w-full overflow-x-hidden bg-background">
+      <div className="flex min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col p-6">
           <div className="mb-4">
             <GameStepper status={game.status} />
           </div>
@@ -145,7 +148,7 @@ export default function TVDisplay({
             </div>
           )}
 
-          {showCards && (
+          {showCards && game.status === "voting" && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {allAnswers.length === 0
                 ? Array.from({ length: 3 }).map((_, i) => (
@@ -180,6 +183,18 @@ export default function TVDisplay({
                       onSelect={() => {}}
                     />
                   ))}
+            </div>
+          )}
+
+          {isResolved && (
+            <div className="min-w-0 flex-1">
+              <ResultPodium
+                answers={allAnswers}
+                voteCounts={voteCounts}
+                voterNames={voterNames}
+                players={players}
+                gameStatus={game.status}
+              />
             </div>
           )}
 
