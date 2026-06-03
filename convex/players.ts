@@ -1,9 +1,23 @@
 import { v } from "convex/values"
 
-import { mutation, query } from "./_generated/server"
+import { mutation, query, type MutationCtx } from "./_generated/server"
+import type { Id } from "./_generated/dataModel"
 
 function now() {
   return Date.now()
+}
+
+async function findPlayer(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  playerId: string,
+) {
+  return await ctx.db
+    .query("players")
+    .withIndex("by_gameId_playerId", (q) =>
+      q.eq("gameId", gameId).eq("playerId", playerId)
+    )
+    .unique()
 }
 
 export const joinGame = mutation({
@@ -13,12 +27,7 @@ export const joinGame = mutation({
     displayName: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("players")
-      .withIndex("by_gameId_playerId", (q) =>
-        q.eq("gameId", args.gameId).eq("playerId", args.playerId)
-      )
-      .unique()
+    const existing = await findPlayer(ctx, args.gameId, args.playerId)
 
     // Check duplicate display name (case-insensitive, excluding self)
     const allPlayers = await ctx.db
@@ -78,12 +87,7 @@ export const setDisplayName = mutation({
     displayName: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("players")
-      .withIndex("by_gameId_playerId", (q) =>
-        q.eq("gameId", args.gameId).eq("playerId", args.playerId)
-      )
-      .unique()
+    const existing = await findPlayer(ctx, args.gameId, args.playerId)
 
     if (!existing) throw new Error("Player not found")
 

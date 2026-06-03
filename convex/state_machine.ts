@@ -17,7 +17,7 @@ function now() {
 // Shared preamble — kills 5+ duplicate "get game → check status" blocks
 // ---------------------------------------------------------------------------
 
-async function loadGame(
+export async function loadGame(
   ctx: MutationCtx,
   gameId: Id<"games">,
 ): Promise<Doc<"games">> {
@@ -84,6 +84,36 @@ async function scheduleTransition(
   }
 
   return true
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for the advance check
+// ---------------------------------------------------------------------------
+
+async function fetchByGameId(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  table: "answers",
+): Promise<Doc<"answers">[]>
+async function fetchByGameId(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  table: "votes",
+): Promise<Doc<"votes">[]>
+async function fetchByGameId(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  table: "players",
+): Promise<Doc<"players">[]>
+async function fetchByGameId(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  table: string,
+): Promise<Doc<"answers" | "votes" | "players">[]> {
+  return await ctx.db
+    .query(table as "answers" | "votes" | "players")
+    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+    .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -414,10 +444,7 @@ export async function handleAdvanceToVoting(
   const game = await loadGame(ctx, gameId)
   assertStatus(game, "responding")
 
-  const answers = await ctx.db
-    .query("answers")
-    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-    .collect()
+  const answers = await fetchByGameId(ctx, gameId, "answers")
 
   if (answers.length < 2) {
     throw new Error("Need at least 2 answers before voting")
@@ -434,10 +461,7 @@ export async function handleAutoAdvanceToVoting(
   if (!game) return
   if (game.status !== "responding") return
 
-  const answers = await ctx.db
-    .query("answers")
-    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-    .collect()
+  const answers = await fetchByGameId(ctx, gameId, "answers")
 
   if (answers.length < 2) return
 
@@ -463,14 +487,8 @@ export async function handleFinalize(ctx: MutationCtx, gameId: Id<"games">) {
   if (game.status !== "voting") return
 
   const [answers, votes] = await Promise.all([
-    ctx.db
-      .query("answers")
-      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-      .collect(),
-    ctx.db
-      .query("votes")
-      .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-      .collect(),
+    fetchByGameId(ctx, gameId, "answers"),
+    fetchByGameId(ctx, gameId, "votes"),
   ])
 
   if (votes.length === 0) return
@@ -514,14 +532,8 @@ async function checkAdvance(ctx: MutationCtx, gameId: Id<"games">) {
 
   if (game.status === "responding") {
     const [answers, humanPlayers] = await Promise.all([
-      ctx.db
-        .query("answers")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .collect(),
-      ctx.db
-        .query("players")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .collect(),
+      fetchByGameId(ctx, gameId, "answers"),
+      fetchByGameId(ctx, gameId, "players"),
     ])
 
     const answeredModels = new Set(answers.map((a) => a.model))
@@ -537,14 +549,8 @@ async function checkAdvance(ctx: MutationCtx, gameId: Id<"games">) {
     }
   } else if (game.status === "voting") {
     const [votes, humanPlayers] = await Promise.all([
-      ctx.db
-        .query("votes")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .collect(),
-      ctx.db
-        .query("players")
-        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
-        .collect(),
+      fetchByGameId(ctx, gameId, "votes"),
+      fetchByGameId(ctx, gameId, "players"),
     ])
 
     const existingVoterIds = new Set(votes.map((v) => v.voterId))

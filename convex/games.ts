@@ -23,6 +23,7 @@ import {
   handleUserVote,
   handleVoteFailure,
   handleVoteResult,
+  loadGame,
 } from "./state_machine"
 import { PAST_STATUSES } from "./lifecycle"
 
@@ -149,8 +150,7 @@ export const advanceToVoting = mutation({
 export const triggerGenerateAnswers = mutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    await loadGame(ctx, args.gameId)
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
       gameId: args.gameId,
@@ -162,8 +162,7 @@ export const triggerGenerateAnswers = mutation({
 export const triggerFinalizeGame = mutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    await loadGame(ctx, args.gameId)
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
       gameId: args.gameId,
@@ -175,8 +174,7 @@ export const triggerFinalizeGame = mutation({
 export const resetGame = mutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    const game = await loadGame(ctx, args.gameId)
     if (!PAST_STATUSES.includes(game.status)) {
       throw new Error("Can only reset a finished game")
     }
