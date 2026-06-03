@@ -26,11 +26,12 @@ import { useUniqueNameFromId } from "@/hooks/use-unique-names"
 import { getPlayerId } from "@/lib/storage"
 
 const STATUS_LABEL: Record<string, string> = {
+  created: "Konfiguration",
   prompting: "Prompt wird generiert...",
   responding: "Antworten",
   voting: "Abstimmung",
-  resolved: "Spiel beendet",
-  locked: "Spiel beendet",
+  resolved: "Ergebnis",
+  locked: "Beendet",
 }
 
 export const Route = createFileRoute("/games/$gameId/play")({

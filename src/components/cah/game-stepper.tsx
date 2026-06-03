@@ -14,6 +14,7 @@ const STEPS: Array<{ key: GameStatus; label: string }> = [
   { key: "responding", label: "Antworten" },
   { key: "voting", label: "Voting" },
   { key: "resolved", label: "Ergebnis" },
+  { key: "locked", label: "Beendet" },
 ]
 
 const STATUS_ORDER: Array<GameStatus> = [
@@ -26,7 +27,6 @@ const STATUS_ORDER: Array<GameStatus> = [
 ]
 
 function getStepIndex(status: GameStatus): number {
-  if (status === "locked") return STATUS_ORDER.indexOf("resolved")
   return STATUS_ORDER.indexOf(status)
 }
 

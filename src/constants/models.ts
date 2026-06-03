@@ -1,10 +1,14 @@
 const MODEL_DATA = {
-  "openai/gpt-5-nano": "GPT-5 Nano",
-  "openai/gpt-4.1-mini": "GPT-4.1 Mini",
-  "google/gemini-2.5-flash-lite-preview-09-2025": "Gemini 2.5 Flash Lite",
-  "google/gemini-2.5-flash": "Gemini 2.5 Flash",
-  "anthropic/claude-3.5-haiku": "Claude 3.5 Haiku",
-  "xiaomi/mimo-v2-flash": "MiMo-V2-Flash",
+  "meta-llama/llama-3.3-70b-instruct:free": "Llama 3.3 70B",
+  "google/gemma-4-31b-it:free": "Gemma 4 31B",
+  "nousresearch/hermes-3-llama-3.1-405b:free": "Hermes 3 405B",
+  "qwen/qwen3-next-80b-a3b-instruct:free": "Qwen3 Next 80B",
+  "meta-llama/llama-3.1-8b-instruct": "Llama 3.1 8B",
+  "mistralai/mistral-nemo": "Mistral Nemo",
+  "mistralai/mistral-small-24b-instruct-2501": "Mistral Small 3",
+  "google/gemma-3-12b-it": "Gemma 3 12B",
+  "qwen/qwen-2.5-7b-instruct": "Qwen 2.5 7B",
+  "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
 } as const
 
 type ModelId = keyof typeof MODEL_DATA

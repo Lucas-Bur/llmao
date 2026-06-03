@@ -2,16 +2,18 @@ import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { ChevronLeft, Smartphone, Timer } from "lucide-react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Smartphone, Timer } from "lucide-react"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 
 import { BlackCard } from "./cah/black-card"
 import { GameStepper } from "./cah/game-stepper"
+import { QRCode } from "./qr-code"
 import { WhiteCard } from "./cah/white-card"
 
 import { Button } from "@/components/ui/button"
 import { lookupModelName } from "@/constants/models"
+import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -19,8 +21,8 @@ const STATUS_LABEL: Record<string, string> = {
   prompting: "Prompt wird generiert...",
   responding: "Antworten werden gesammelt...",
   voting: "Abstimmung läuft...",
-  resolved: "Spiel beendet",
-  locked: "Spiel beendet",
+  resolved: "Ergebnis",
+  locked: "Beendet",
 }
 
 const SHOW_CARDS_STATUSES = new Set([
@@ -33,11 +35,27 @@ export default function TVDisplay({
   gameId,
 }: Readonly<{ gameId: string }>) {
   const navigate = useNavigate()
+  const { setBreadcrumb } = useBreadcrumb()
   const roomName = useUniqueNameFromId(gameId)
+
+  const {origin}= useRouter()
 
   const { data: gameObject, isLoading } = useQuery(
     convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> })
   )
+
+  useEffect(() => {
+    setBreadcrumb(
+      <Link
+        to="/games"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        Alle Spiele
+        <span className="ml-1 text-muted-foreground/50">/ {roomName}</span>
+      </Link>
+    )
+    return () => setBreadcrumb(null)
+  }, [gameId, roomName, setBreadcrumb])
 
   if (isLoading) {
     return (
@@ -126,16 +144,6 @@ export default function TVDisplay({
     <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
       <div className="flex flex-1">
         <div className="flex flex-1 flex-col p-6">
-          {/* Breadcrumb */}
-          <Link
-            to="/games"
-            className="mb-4 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="h-3 w-3" />
-            Alle Spiele
-            <span className="ml-1 text-muted-foreground/50">/ {roomName}</span>
-          </Link>
-
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {STATUS_LABEL[game.status] ?? game.status}
@@ -240,10 +248,6 @@ export default function TVDisplay({
             </div>
           )}
 
-          <p className="mb-1 text-xs text-muted-foreground">
-            Prompt-Modell: {lookupModelName(game.promptModel)}
-          </p>
-
           <div className="mb-6">
             <BlackCard
               text={prompt?.text}
@@ -308,19 +312,15 @@ export default function TVDisplay({
             </div>
           )}
 
-          {(game.status === "resolved" || game.status === "locked") && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Spiel beendet
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Right side: Join panel */}
         <div className="flex w-56 flex-col items-center justify-center gap-4 border-l p-6">
-          <div className="mb-2 flex h-36 w-36 items-center justify-center border bg-muted text-center text-[10px] text-muted-foreground">
-            QR-CODE
+          <div className="mb-2">
+            <QRCode
+              url={`${origin}/games/${gameId}/play`}
+              size={160}
+            />
           </div>
           <p className="text-center text-xs text-muted-foreground">
             Scanne den Code mit deinem Handy

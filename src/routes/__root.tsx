@@ -12,6 +12,7 @@ import { Smile } from "lucide-react"
 
 import appCss from "../styles.css?url"
 
+import { BreadcrumbProvider, useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { UserMenu } from "@/components/user-menu"
 import { UserProvider } from "@/hooks/use-user"
 import AiDevtools from "@/lib/ai-devtools"
@@ -53,6 +54,27 @@ function NotFound() {
   )
 }
 
+function HeaderInner() {
+  const { breadcrumb } = useBreadcrumb()
+  return (
+    <header className="sticky top-0 z-50 flex h-(--header-height) items-center justify-between border-b bg-background px-4">
+      <div className="flex items-center gap-4">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center border">
+            <Smile className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-semibold">LLMAO</span>
+        </Link>
+        {breadcrumb && (
+          <span className="text-xs text-muted-foreground/50">/</span>
+        )}
+        {breadcrumb}
+      </div>
+      <UserMenu />
+    </header>
+  )
+}
+
 function RootDocument({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
@@ -61,18 +83,10 @@ function RootDocument({ children }: Readonly<{ children: React.ReactNode }>) {
       </head>
       <body>
         <UserProvider>
-          {/* Global top bar */}
-          <header className="sticky top-0 z-50 flex h-(--header-height) items-center justify-between border-b bg-background px-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center border">
-                <Smile className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-semibold">LLMAO</span>
-            </Link>
-            <UserMenu />
-          </header>
-
-          <main>{children}</main>
+          <BreadcrumbProvider>
+            <HeaderInner />
+            <main>{children}</main>
+          </BreadcrumbProvider>
 
           <TanStackDevtools
             config={{
