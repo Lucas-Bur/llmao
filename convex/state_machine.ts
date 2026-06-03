@@ -7,6 +7,7 @@ import {
   type TransitionName,
 } from "./lifecycle"
 import { applyMultiPlayerElo } from "./ratings"
+import { logLLMEvent } from "./llm_events"
 
 function now() {
   return Date.now()
@@ -155,16 +156,13 @@ export async function handlePromptResult(
     createdAt: now(),
   })
 
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId: args.gameId,
     stage: "prompt",
     role: "writer",
     model: args.model,
     promptText: args.promptText,
     responseText: args.rawResponse,
-    success: true,
-    locked: true,
-    createdAt: now(),
   })
 
   await scheduleTransition(ctx, args.gameId, game, "promptComplete", {
@@ -200,17 +198,13 @@ export async function handlePromptFailure(
   ctx: MutationCtx,
   args: PromptFailure,
 ) {
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId: args.gameId,
     stage: "prompt",
     role: "writer",
     model: args.model,
     promptText: args.promptText,
-    responseText: "",
-    success: false,
     errorMessage: args.errorMessage,
-    locked: true,
-    createdAt: now(),
   })
 
   const game = await ctx.db.get("games", args.gameId)
@@ -253,16 +247,13 @@ export async function handleAnswerResult(
     createdAt: now(),
   })
 
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId: args.gameId,
     stage: "answer",
     role: "player",
     model: args.model,
     promptText: args.promptText,
     responseText: args.rawResponse,
-    success: true,
-    locked: true,
-    createdAt: now(),
   })
 
   await ctx.db.patch("games", args.gameId, { updatedAt: now() })
@@ -280,17 +271,13 @@ export async function handleAnswerFailure(
   ctx: MutationCtx,
   args: AnswerFailure,
 ) {
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId: args.gameId,
     stage: "answer",
     role: "player",
     model: args.model,
     promptText: args.promptText,
-    responseText: "",
-    success: false,
     errorMessage: args.errorMessage,
-    locked: true,
-    createdAt: now(),
   })
 }
 
@@ -325,16 +312,13 @@ export async function handleVoteResult(ctx: MutationCtx, args: VoteResult) {
     createdAt: now(),
   })
 
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId: args.gameId,
     stage: "vote",
     role: "judge",
     model: args.model,
     promptText: args.promptText,
     responseText: args.rawResponse,
-    success: true,
-    locked: true,
-    createdAt: now(),
   })
 
   await checkAdvance(ctx, args.gameId)
@@ -347,17 +331,13 @@ export async function handleVoteFailure(
   promptText: string,
   errorMessage: string,
 ) {
-  await ctx.db.insert("llmEvents", {
+  await logLLMEvent(ctx, {
     gameId,
     stage: "vote",
     role: "judge",
     model,
     promptText,
-    responseText: "",
-    success: false,
     errorMessage,
-    locked: true,
-    createdAt: now(),
   })
 }
 
