@@ -4,7 +4,7 @@ import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { Smartphone, Timer } from "lucide-react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { BlackCard } from "./cah/black-card"
 import { GameStepper } from "./cah/game-stepper"
@@ -15,15 +15,6 @@ import { Button } from "@/components/ui/button"
 import { lookupModelName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-
-const STATUS_LABEL: Record<string, string> = {
-  created: "Konfiguration läuft...",
-  prompting: "Prompt wird generiert...",
-  responding: "Antworten werden gesammelt...",
-  voting: "Abstimmung läuft...",
-  resolved: "Ergebnis",
-  locked: "Beendet",
-}
 
 const SHOW_CARDS_STATUSES = new Set([
   "voting",
@@ -84,8 +75,30 @@ export default function TVDisplay({
   const llmEvents = gameObject.llmEvents ?? []
   const showCards = SHOW_CARDS_STATUSES.has(game.status)
 
-  // Card visibility: face-down during responding, face-up during voting+
-  const cardsFlipped = game.status !== "responding"
+  // Staggered card reveal when voting → resolved/locked
+  const [revealedCardIds, setRevealedCardIds] = useState<Set<string>>(new Set())
+  const prevStatusRef = useRef(game.status)
+
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    prevStatusRef.current = game.status
+
+    const isNowResolved = game.status === "resolved" || game.status === "locked"
+    const wasVoting = prev === "voting"
+
+    if (wasVoting && isNowResolved && allAnswers.length > 0) {
+      const ids = allAnswers.map((a) => a._id)
+      ids.forEach((id, i) => {
+        setTimeout(() => {
+          setRevealedCardIds((curr) => new Set([...curr, id]))
+        }, i * 800)
+      })
+    } else if (isNowResolved && revealedCardIds.size === 0) {
+      setRevealedCardIds(new Set(allAnswers.map((a) => a._id)))
+    } else if (game.status === "voting") {
+      setRevealedCardIds(new Set())
+    }
+  }, [game.status, allAnswers])
 
   // Which models have answered / failed
   const answeredModelIds = new Set(allAnswers.map((a) => a.model))
@@ -97,23 +110,10 @@ export default function TVDisplay({
 
   // Player submission status during responding
   const expectedAIPlayers = game.playerModels ?? []
-  const submittedAIs = expectedAIPlayers.filter((m) =>
-    answeredModelIds.has(m)
-  )
-  const failedAIs = expectedAIPlayers.filter((m) => failedModelIds.has(m))
-  const humanPlayersWithAnswers = players.filter((p) =>
-    answeredModelIds.has(`user:${p.playerId}`)
-  )
 
   // Vote progress during voting
   const votedVoterIds = new Set(votes.map((v) => v.voterId))
   const expectedVoters = game.voterModels ?? []
-  const votedAIVoters = expectedVoters.filter((m) =>
-    votedVoterIds.has(`model:${m}`)
-  )
-  const humanVotersWhoVoted = players.filter((p) =>
-    votedVoterIds.has(`user:${p.playerId}`)
-  )
 
   const voteCounts: Record<string, number> = {}
   const voterNames: Record<string, Array<string>> = {}
@@ -144,109 +144,9 @@ export default function TVDisplay({
     <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
       <div className="flex flex-1">
         <div className="flex flex-1 flex-col p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {STATUS_LABEL[game.status] ?? game.status}
-            </p>
+          <div className="mb-4">
             <GameStepper status={game.status} />
           </div>
-
-          {/* Player list + human players */}
-          <div className="mb-4 text-xs text-muted-foreground">
-            <span>Spieler: </span>
-            {players.length === 0 && expectedAIPlayers.length === 0 ? (
-              <span>Noch niemand da — scanne den QR-Code!</span>
-            ) : (
-              <>
-                {/* AI players */}
-                {expectedAIPlayers.map((m) => (
-                  <span
-                    key={m}
-                    className={
-                      failedModelIds.has(m)
-                        ? "text-destructive"
-                        : answeredModelIds.has(m)
-                          ? "text-green-600"
-                          : undefined
-                    }
-                  >
-                    {lookupModelName(m)}
-                    {answeredModelIds.has(m) ? " ✓" : failedModelIds.has(m) ? " ✗" : " ⟳"}{" "}
-                  </span>
-                ))}
-                {/* Human players */}
-                {players.map((p) => (
-                  <span
-                    key={p.playerId}
-                    className={
-                      answeredModelIds.has(`user:${p.playerId}`)
-                        ? "text-green-600"
-                        : undefined
-                    }
-                  >
-                    {p.displayName}
-                    {answeredModelIds.has(`user:${p.playerId}`)
-                      ? " ✓"
-                      : " ⟳"}{" "}
-                  </span>
-                ))}
-              </>
-            )}
-          </div>
-
-          {game.status === "voting" && (
-            <div className="mb-4 text-xs text-muted-foreground">
-              <span>Voter: </span>
-              {expectedVoters.length === 0 && players.length === 0 ? (
-                <span>—</span>
-              ) : (
-                <>
-                  {expectedVoters.map((m) => {
-                    const voted = votedVoterIds.has(`model:${m}`)
-                    return (
-                      <span key={m} className={voted ? "text-green-600" : undefined}>
-                        {lookupModelName(m)}
-                        {voted ? " ✓" : " ⟳"}{" "}
-                      </span>
-                    )
-                  })}
-                  {players.map((p) => {
-                    const voted = votedVoterIds.has(`user:${p.playerId}`)
-                    return (
-                      <span key={p.playerId} className={voted ? "text-green-600" : undefined}>
-                        {p.displayName}
-                        {voted ? " ✓" : " ⟳"}{" "}
-                      </span>
-                    )
-                  })}
-                </>
-              )}
-            </div>
-          )}
-
-          {(game.status === "responding" || game.status === "voting") && (
-            <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
-              <span>
-                {game.status === "responding" && (
-                  <>
-                    Antworten: {submittedAIs.length + humanPlayersWithAnswers.length}
-                    /{expectedAIPlayers.length + players.length}
-                    {failedAIs.length > 0 && (
-                      <span className="ml-2 text-destructive">
-                        ({failedAIs.length} fehlgeschlagen)
-                      </span>
-                    )}
-                  </>
-                )}
-                {game.status === "voting" && (
-                  <>
-                    Votes: {votedAIVoters.length + humanVotersWhoVoted.length}/{expectedVoters.length + players.length}
-                  </>
-                )}
-              </span>
-              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
-            </div>
-          )}
 
           <div className="mb-6">
             <BlackCard
@@ -298,7 +198,7 @@ export default function TVDisplay({
                             )?.displayName ?? answer.model
                           : lookupModelName(answer.model)
                       }
-                      isFlipped={cardsFlipped}
+                      isFlipped={revealedCardIds.has(answer._id)}
                       isSelected={false}
                       isLoading={false}
                       voteCount={voteCounts[answer._id]}
@@ -314,35 +214,100 @@ export default function TVDisplay({
 
         </div>
 
-        {/* Right side: Join panel */}
-        <div className="flex w-56 flex-col items-center justify-center gap-4 border-l p-6">
-          <div className="mb-2">
-            <QRCode
-              url={`${origin}/games/${gameId}/play`}
-              size={160}
-            />
+        {/* Right side: sidebar */}
+        <div className="flex w-56 flex-col gap-4 border-l p-4">
+          {/* Player progress */}
+          {game.status === "responding" && (
+            <div className="text-xs">
+              <p className="mb-2 font-medium text-foreground">Antworten</p>
+              <div className="space-y-1 text-muted-foreground">
+                {expectedAIPlayers.map((m) => (
+                  <div key={m} className="flex justify-between">
+                    <span className={answeredModelIds.has(m) ? "text-green-600" : failedModelIds.has(m) ? "text-destructive" : undefined}>
+                      {lookupModelName(m)}
+                    </span>
+                    <span>{answeredModelIds.has(m) ? "✓" : failedModelIds.has(m) ? "✗" : "⟳"}</span>
+                  </div>
+                ))}
+                {players.map((p) => (
+                  <div key={p.playerId} className="flex justify-between">
+                    <span className={answeredModelIds.has(`user:${p.playerId}`) ? "text-green-600" : undefined}>
+                      {p.displayName}
+                    </span>
+                    <span>{answeredModelIds.has(`user:${p.playerId}`) ? "✓" : "⟳"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between text-muted-foreground">
+                <span>
+                  {answeredModelIds.size}/{expectedAIPlayers.length + players.length}
+                </span>
+                {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
+              </div>
+            </div>
+          )}
+
+          {game.status === "voting" && (
+            <div className="text-xs">
+              <p className="mb-2 font-medium text-foreground">Abstimmung</p>
+              <div className="space-y-1 text-muted-foreground">
+                {expectedVoters.map((m) => {
+                  const voted = votedVoterIds.has(`model:${m}`)
+                  return (
+                    <div key={m} className="flex justify-between">
+                      <span className={voted ? "text-green-600" : undefined}>
+                        {lookupModelName(m)}
+                      </span>
+                      <span>{voted ? "✓" : "⟳"}</span>
+                    </div>
+                  )
+                })}
+                {players.map((p) => {
+                  const voted = votedVoterIds.has(`user:${p.playerId}`)
+                  return (
+                    <div key={p.playerId} className="flex justify-between">
+                      <span className={voted ? "text-green-600" : undefined}>
+                        {p.displayName}
+                      </span>
+                      <span>{voted ? "✓" : "⟳"}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-3 flex items-center justify-between text-muted-foreground">
+                <span>
+                  {votedVoterIds.size}/{expectedVoters.length + players.length}
+                </span>
+                {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
+              </div>
+            </div>
+          )}
+
+          {/* QR code + join */}
+          <div className="flex flex-col items-center gap-3">
+            <QRCode url={`${origin}/games/${gameId}/play`} size={160} />
+            <p className="text-center text-xs text-muted-foreground">
+              Scanne den Code mit deinem Handy
+            </p>
+            <Button
+              variant="default"
+              className="w-full gap-2"
+              onClick={() =>
+                navigate({
+                  to: "/games/$gameId/play",
+                  params: { gameId },
+                })
+              }
+            >
+              <Smartphone className="h-4 w-4" />
+              Jetzt beitreten
+            </Button>
+            <p className="text-center text-[10px] text-muted-foreground">
+              Erster Besucher wird Host
+              <br />
+              und kann das Spiel konfigurieren
+            </p>
           </div>
-          <p className="text-center text-xs text-muted-foreground">
-            Scanne den Code mit deinem Handy
-          </p>
-          <Button
-            variant="default"
-            className="w-full gap-2"
-            onClick={() =>
-              navigate({
-                to: "/games/$gameId/play",
-                params: { gameId },
-              })
-            }
-          >
-            <Smartphone className="h-4 w-4" />
-            Jetzt beitreten
-          </Button>
-          <p className="text-center text-[10px] text-muted-foreground">
-            Erster Besucher wird Host
-            <br />
-            und kann das Spiel konfigurieren
-          </p>
         </div>
       </div>
     </div>
