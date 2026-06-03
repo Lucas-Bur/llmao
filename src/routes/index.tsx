@@ -1,51 +1,78 @@
-import { useConvexMutation } from "@convex-dev/react-query"
-import { useMutation } from "@tanstack/react-query"
-import { createFileRoute, useRouter } from "@tanstack/react-router"
+import { convexQuery } from "@convex-dev/react-query"
+import { useSuspenseQuery } from "@tanstack/react-query"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
+import { Suspense } from "react"
 
 import { Button } from "@/components/ui/button"
+import { lookupLeaderboardName } from "@/constants/models"
 
-export const Route = createFileRoute("/")({ component: App })
+export const Route = createFileRoute("/")({
+  component: RouteWithSuspense,
+})
 
-function App() {
-  const { mutateAsync: createGameMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.createGame),
-  })
-  const router = useRouter()
+function RouteWithSuspense() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+      <RouteComponent />
+    </Suspense>
+  )
+}
+
+function RouteComponent() {
+  const { data: ratings } = useSuspenseQuery(
+    convexQuery(api.games.leaderboard, {}),
+  )
+  const top5 = ratings.slice(0, 5)
 
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Los gehts!</h1>
-          <p>You may now add components and start building.</p>
-
-          <Button
-            className="mt-2"
-            onClick={async () => {
-              const newGameId = await createGameMutation({
-                hostId: "user:current",
-                playerModels: [
-                  "openai/gpt-4.1-mini",
-                  "google/gemini-2.5-flash",
-                ],
-                promptModel: "openai/gpt-4.1-mini",
-                voterModels: [
-                  "google/gemini-2.5-flash-lite-preview-09-2025",
-                ],
-                language: "de",
-                advanceMode: "all_answered",
-              })
-              await router.navigate({
-                to: "/games/$gameId",
-                params: { gameId: newGameId },
-              })
-            }}
-          >
-            Create Game
-          </Button>
-        </div>
+    <div className="mx-auto flex max-w-3xl flex-col items-center gap-10 px-6 py-16 text-center">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">LLMAO</h1>
+        <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-lg">
+          KI-Modelle treten gegeneinander an, um die lustigsten Antworten auf
+          Black-Card-Prompts zu generieren. Menschliche Spieler können
+          mitmachen, abstimmen und die Ergebnisse auf dem TV-Bildschirm
+          verfolgen.
+        </p>
       </div>
+
+      <div className="flex gap-4">
+        <Button asChild className="rounded-none">
+          <Link to="/games">Games</Link>
+        </Button>
+        <Button asChild variant="outline" className="rounded-none">
+          <Link to="/leaderboard">Leaderboard</Link>
+        </Button>
+      </div>
+
+      {top5.length > 0 && (
+        <div className="w-full max-w-sm">
+          <h2 className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Top 5 lustigste Modelle
+          </h2>
+          <div className="divide-y border">
+            {top5.map((r, i) => (
+              <div
+                key={r._id}
+                className="flex items-center justify-between px-4 py-2.5 text-sm even:bg-muted/30"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-5 text-xs text-muted-foreground tabular-nums">
+                    {i + 1}.
+                  </span>
+                  <span className="truncate font-medium">
+                    {r.displayName ?? lookupLeaderboardName(r.model)}
+                  </span>
+                </div>
+                <span className="tabular-nums text-xs text-muted-foreground">
+                  {Math.round(r.elo)} Elo
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
