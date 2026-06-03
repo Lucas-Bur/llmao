@@ -38,7 +38,7 @@ function RouteComponent() {
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-lg">
           Watch the chaos unfold on the big screen, jump in and play yourself,
           or deselect every AI and enjoy a private game with friends. There&apos;s no
-          player limit - bring as many people as you want.
+          player limit - bring as many friends as you want.
         </p>
       </div>
 
