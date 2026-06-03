@@ -5,11 +5,15 @@ import {
   HeadContent,
   Scripts,
   createRootRouteWithContext,
+  Link,
 } from "@tanstack/react-router"
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
+import { Smile } from "lucide-react"
 
 import appCss from "../styles.css?url"
 
+import { UserMenu } from "@/components/user-menu"
+import { UserProvider } from "@/hooks/use-user"
 import AiDevtools from "@/lib/ai-devtools"
 
 export const Route = createRootRouteWithContext<{
@@ -26,7 +30,7 @@ export const Route = createRootRouteWithContext<{
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: "LLMAO",
       },
     ],
     links: [
@@ -56,23 +60,37 @@ function RootDocument({ children }: Readonly<{ children: React.ReactNode }>) {
         <HeadContent />
       </head>
       <body>
-        {children}
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-            AiDevtools,
-            {
-              name: "TanStack Query",
-              render: <ReactQueryDevtoolsPanel />,
-            },
-          ]}
-        />
+        <UserProvider>
+          {/* Global top bar */}
+          <header className="sticky top-0 z-50 flex h-(--header-height) items-center justify-between border-b bg-background px-4">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center border">
+                <Smile className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-semibold">LLMAO</span>
+            </Link>
+            <UserMenu />
+          </header>
+
+          <main>{children}</main>
+
+          <TanStackDevtools
+            config={{
+              position: "bottom-right",
+            }}
+            plugins={[
+              {
+                name: "Tanstack Router",
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+              AiDevtools,
+              {
+                name: "TanStack Query",
+                render: <ReactQueryDevtoolsPanel />,
+              },
+            ]}
+          />
+        </UserProvider>
         <Scripts />
       </body>
     </html>

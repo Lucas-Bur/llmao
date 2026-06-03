@@ -5,7 +5,7 @@ import type { Id } from "convex/_generated/dataModel"
 
 import CardsAgainstLLMs from "@/components/cards-against-llms"
 
-export const Route = createFileRoute("/games/$gameId")({
+export const Route = createFileRoute("/games/$gameId/")({
   loader: async ({ context, params }) => {
     return await Promise.allSettled([
       context.queryClient.ensureQueryData(

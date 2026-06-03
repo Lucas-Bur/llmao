@@ -21,7 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useUser } from "@/hooks/use-user"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
+import { getPlayerId } from "@/lib/storage"
 
 const STATUS_LABEL: Record<string, string> = {
   prompting: "Prompt wird generiert...",
@@ -29,15 +31,6 @@ const STATUS_LABEL: Record<string, string> = {
   voting: "Abstimmung",
   resolved: "Spiel beendet",
   locked: "Spiel beendet",
-}
-
-function getPlayerId(): string {
-  let id = localStorage.getItem("llmao_player_id")
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem("llmao_player_id", id)
-  }
-  return id
 }
 
 export const Route = createFileRoute("/games/$gameId/play")({
@@ -62,10 +55,10 @@ function RouteComponent() {
   const { gameId } = Route.useParams() as { gameId: string }
   const playerId = useMemo(() => getPlayerId(), [])
   const roomName = useUniqueNameFromId(gameId)
-  const storedName = localStorage.getItem("llmao_player_name") ?? ""
+  const { name: globalName, setName: setGlobalName } = useUser()
 
-  const [displayName, setDisplayName] = useState(storedName)
-  const [nameSubmitted, setNameSubmitted] = useState(() => !!storedName)
+  const [displayName, setDisplayName] = useState(globalName)
+  const [nameSubmitted, setNameSubmitted] = useState(() => !!globalName)
   const [isEditingName, setIsEditingName] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [hasUserVoted, setHasUserVoted] = useState(false)
@@ -137,7 +130,7 @@ function RouteComponent() {
         playerId,
         displayName: displayName.trim(),
       })
-      localStorage.setItem("llmao_player_name", displayName.trim())
+      setGlobalName(displayName.trim())
       setNameSubmitted(true)
       setIsEditingName(false)
     } catch (err: unknown) {
@@ -155,7 +148,7 @@ function RouteComponent() {
         playerId,
         displayName: displayName.trim(),
       })
-      localStorage.setItem("llmao_player_name", displayName.trim())
+      setGlobalName(displayName.trim())
       setIsEditingName(false)
     } catch (err: unknown) {
       setJoinError(

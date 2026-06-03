@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { ChevronRight, Smartphone, Smile } from "lucide-react"
+import { ChevronLeft, Smartphone } from "lucide-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 
 import { BlackCard } from "./cah/black-card"
@@ -41,7 +41,7 @@ export default function TVDisplay({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-[calc(100svh-var(--header-height))] items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Spiel wird geladen...</p>
       </div>
     )
@@ -49,7 +49,7 @@ export default function TVDisplay({
 
   if (!gameObject) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
+      <div className="flex min-h-[calc(100svh-var(--header-height))] flex-col items-center justify-center gap-4 bg-background">
         <p className="text-sm text-muted-foreground">Spiel nicht gefunden</p>
         <Button onClick={() => navigate({ to: "/games" })}>
           Zurück zur Übersicht
@@ -78,31 +78,19 @@ export default function TVDisplay({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-(--header-height) items-center px-4">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center border">
-                <Smile className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-semibold">LLMAO</span>
-            </Link>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <Link
-              to="/games"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Alle Spiele
-            </Link>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">{roomName}</span>
-          </div>
-        </div>
-      </header>
-
+    <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
       <div className="flex flex-1">
         <div className="flex flex-1 flex-col p-6">
+          {/* Breadcrumb */}
+          <Link
+            to="/games"
+            className="mb-4 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-3 w-3" />
+            Alle Spiele
+            <span className="ml-1 text-muted-foreground/50">/ {roomName}</span>
+          </Link>
+
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {STATUS_LABEL[game.status] ?? game.status}
@@ -195,7 +183,7 @@ export default function TVDisplay({
 
         {/* Right side: Join panel */}
         <div className="flex w-56 flex-col items-center justify-center gap-4 border-l p-6">
-          <div className="mb-2 h-36 w-36 bg-muted flex items-center justify-center text-[10px] text-muted-foreground text-center border">
+          <div className="mb-2 flex h-36 w-36 items-center justify-center border bg-muted text-center text-[10px] text-muted-foreground">
             QR-CODE
           </div>
           <p className="text-center text-xs text-muted-foreground">
@@ -204,13 +192,19 @@ export default function TVDisplay({
           <Button
             variant="default"
             className="w-full gap-2"
-            onClick={() => navigate({ to: "/games/$gameId/play", params: { gameId } })}
+            onClick={() =>
+              navigate({
+                to: "/games/$gameId/play",
+                params: { gameId },
+              })
+            }
           >
             <Smartphone className="h-4 w-4" />
             Jetzt beitreten
           </Button>
           <p className="text-center text-[10px] text-muted-foreground">
-            Erster Besucher wird Host<br />
+            Erster Besucher wird Host
+            <br />
             und kann das Spiel konfigurieren
           </p>
         </div>

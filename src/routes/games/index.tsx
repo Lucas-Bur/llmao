@@ -1,8 +1,7 @@
 import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router"
+import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
-import { ChevronRight, Smile } from "lucide-react"
 import { Suspense } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +10,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -63,7 +63,7 @@ function RouteWithSuspense() {
 
 function GamesLoading() {
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="p-6">
       <p className="text-sm text-muted-foreground">Lade Spiele...</p>
     </div>
   )
@@ -105,94 +105,74 @@ function RouteComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background">
-        <div className="flex h-(--header-height) items-center px-4">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center border">
-                <Smile className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-semibold">LLMAO</span>
-            </Link>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Alle Spiele</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl p-6">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Spielübersicht</h1>
-          <Button onClick={handleCreateGame}>Neues Spiel</Button>
-        </div>
-
-        {/* Ongoing Games */}
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-            Laufende Spiele
-          </h2>
-          {ongoingGames.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Keine laufenden Spiele
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {ongoingGames.map((game) => (
-                <GameCard key={game._id} game={game} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Past Games */}
-        <section>
-          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-            Vergangene Spiele
-          </h2>
-          {pastGames.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Keine vergangenen Spiele
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {pastGames.map((game) => (
-                <GameCard key={game._id} game={game} />
-              ))}
-            </div>
-          )}
-        </section>
+    <div className="mx-auto max-w-3xl p-6">
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Spielübersicht</h1>
+        <Button onClick={handleCreateGame}>Neues Spiel</Button>
       </div>
+
+      {/* Ongoing Games */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+          Laufende Spiele
+        </h2>
+        {ongoingGames.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Keine laufenden Spiele
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {ongoingGames.map((game) => (
+              <GameCard key={game._id} game={game} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Past Games */}
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+          Vergangene Spiele
+        </h2>
+        {pastGames.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Keine vergangenen Spiele
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {pastGames.map((game) => (
+              <GameCard key={game._id} game={game} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
 
-function GameCard({ game }: Readonly<{ game: { _id: string; status: string; promptModel: string; playerModels: Array<string>; voterModels: Array<string>; createdAt: number } }>) {
+function GameCard({
+  game,
+}: Readonly<{
+  game: {
+    _id: string
+    status: string
+    promptModel: string
+    playerModels: Array<string>
+    voterModels: Array<string>
+    createdAt: number
+  }
+}>) {
   const router = useRouter()
   const name = useUniqueNameFromId(game._id)
   const variant = STATUS_VARIANTS[game.status] ?? "outline"
-
-  const handleClick = () => {
-    router.navigate({ to: "/games/$gameId", params: { gameId: game._id } })
-  }
+  const isOngoing = ONGOING_STATUSES.includes(game.status)
 
   return (
-    <Card
-      size="sm"
-      className="cursor-pointer transition-colors hover:bg-muted/50"
-      onClick={handleClick}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") handleClick()
-      }}
-      role="button"
-      tabIndex={0}
-    >
+    <Card size="sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{name}</CardTitle>
-          <Badge
-            variant={variant as "default" | "secondary" | "outline"}
-          >
+          <Badge variant={variant as "default" | "secondary" | "outline"}>
             {STATUS_LABELS[game.status] ?? game.status}
           </Badge>
         </div>
@@ -202,11 +182,40 @@ function GameCard({ game }: Readonly<{ game: { _id: string; status: string; prom
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{game.playerModels.length} Spieler</span>
+          <span>{game.playerModels.length} KI-Spieler</span>
           <span>{game.voterModels.length} Voter</span>
           <span>{relativeTime(game.createdAt)}</span>
         </div>
       </CardContent>
+      <CardFooter className="gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-none text-xs"
+          onClick={() =>
+            router.navigate({
+              to: "/games/$gameId",
+              params: { gameId: game._id },
+            })
+          }
+        >
+          📺 TV
+        </Button>
+        {isOngoing && (
+          <Button
+            size="sm"
+            className="rounded-none text-xs"
+            onClick={() =>
+              router.navigate({
+                to: "/games/$gameId/play",
+                params: { gameId: game._id },
+              })
+            }
+          >
+            🎮 Spielen
+          </Button>
+        )}
+      </CardFooter>
     </Card>
   )
 }
