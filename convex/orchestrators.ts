@@ -4,7 +4,8 @@ import type { OpenRouterModelOptionsByName } from "@tanstack/ai-openrouter"
 import { v } from "convex/values"
 
 import { internal } from "./_generated/api"
-import { internalAction } from "./_generated/server"
+import { internalAction, type ActionCtx } from "./_generated/server"
+import type { Doc, Id } from "./_generated/dataModel"
 import {
   playerPrompt,
   playerSystemPrompt,
@@ -14,6 +15,17 @@ import {
   writerSystemPrompt,
 } from "./prompts"
 import { cleanResponse, shuffle, withRetry } from "./utils"
+
+async function loadGameData(
+  ctx: ActionCtx,
+  gameId: Id<"games">,
+  expectedStatus?: Doc<"games">["status"]
+) {
+  const data = await ctx.runQuery(internal.games.getGameInternal, { gameId })
+  if (!data) throw new Error("Game not found")
+  if (expectedStatus && data.game.status !== expectedStatus) return null
+  return data
+}
 
 type ModelId = keyof OpenRouterModelOptionsByName
 
@@ -54,11 +66,8 @@ async function invokeText(
 export const generatePrompt = internalAction({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const data = await ctx.runQuery(internal.games.getGameInternal, {
-      gameId: args.gameId,
-    })
-    if (!data) throw new Error("Game not found")
-    if (data.game.status !== "prompting") return
+    const data = await loadGameData(ctx, args.gameId, "prompting")
+    if (!data) return
 
     const system = writerSystemPrompt()
     const prompt = writerPrompt()
@@ -93,13 +102,9 @@ export const generatePrompt = internalAction({
 export const generateAnswers = internalAction({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const data = await ctx.runQuery(internal.games.getGameInternal, {
-      gameId: args.gameId,
-    })
-    if (!data?.game || !data.prompt) {
-      throw new Error("Incomplete game state")
-    }
-    if (data.game.status !== "responding") return
+    const data = await loadGameData(ctx, args.gameId, "responding")
+    if (!data) return
+    if (!data.prompt) throw new Error("Incomplete game state")
 
     const system = playerSystemPrompt()
     const promptText = playerPrompt(data.prompt.text)
@@ -145,13 +150,11 @@ export const generateAnswers = internalAction({
 export const generateModelVotes = internalAction({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
-    const data = await ctx.runQuery(internal.games.getGameInternal, {
-      gameId: args.gameId,
-    })
-    if (!data?.game || !data.prompt || data.answers.length < 2) {
+    const data = await loadGameData(ctx, args.gameId, "voting")
+    if (!data) return
+    if (!data.prompt || data.answers.length < 2) {
       throw new Error("Incomplete voting state")
     }
-    if (data.game.status !== "voting") return
 
     const existingVoterIds = new Set(data.votes.map((vote) => vote.voterId))
 
