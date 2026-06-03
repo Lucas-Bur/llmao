@@ -1,4 +1,4 @@
-import { lookupModelName } from "@/constants/models"
+import { lookupModelName, resolveDisplayName } from "@/constants/models"
 
 type ParticipantStatus = "done" | "pending" | "failed"
 
@@ -40,12 +40,7 @@ function computeVoteCounts(
   }
   for (const vote of votes) {
     voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
-    const name = vote.voterId.startsWith("user:")
-      ? players.find(
-          (p) => `user:${p.playerId}` === vote.voterId
-        )?.displayName ?? vote.voterId
-      : lookupModelName(vote.voterId.replace("model:", ""))
-    voterNames[vote.answerId].push(name)
+    voterNames[vote.answerId].push(resolveDisplayName(vote.voterId, players))
   }
   return { voteCounts, voterNames }
 }
@@ -61,54 +56,27 @@ function computeTimerDeadline(game: UseGameProgressParams["game"]) {
   return undefined
 }
 
-function buildRespondParticipants(
-  game: UseGameProgressParams["game"],
-  answers: UseGameProgressParams["answers"],
+function buildParticipants(
+  models: string[],
+  doneIds: Set<string>,
   players: UseGameProgressParams["players"],
-  llmEvents: UseGameProgressParams["llmEvents"],
-  playerId?: string,
+  playerId: string | undefined,
+  modelPrefix: string,
+  playerKeyFn: (p: { playerId: string }) => string,
+  subtitlePending: string,
+  failedIds?: Set<string>,
 ): Participant[] {
-  const answeredModelIds = new Set(answers.map((a) => a.model))
-  const failedModelIds = new Set(
-    llmEvents
-      .filter((e) => e.stage === "answer" && !e.success)
-      .map((e) => e.model)
-  )
-
   return [
-    ...game.playerModels.map((m) => ({
+    ...models.map((m) => ({
       id: m,
       label: lookupModelName(m),
-      status: (failedModelIds.has(m) ? "failed" : answeredModelIds.has(m) ? "done" : "pending") as ParticipantStatus,
+      status: (failedIds?.has(m) ? "failed" : doneIds.has(modelPrefix ? `${modelPrefix}${m}` : m) ? "done" : "pending") as ParticipantStatus,
     })),
     ...players.map((p) => ({
       id: p.playerId,
       label: playerId != null && p.playerId === playerId ? "you" : p.displayName,
-      status: (answeredModelIds.has(`user:${p.playerId}`) ? "done" : "pending") as ParticipantStatus,
-      subtitle: playerId != null && p.playerId === playerId && !answeredModelIds.has(`user:${p.playerId}`) ? "your answer missing" : undefined,
-    })),
-  ]
-}
-
-function buildVoteParticipants(
-  game: UseGameProgressParams["game"],
-  votes: UseGameProgressParams["votes"],
-  players: UseGameProgressParams["players"],
-  playerId?: string,
-): Participant[] {
-  const votedVoterIds = new Set(votes.map((v) => v.voterId))
-
-  return [
-    ...game.voterModels.map((m) => ({
-      id: m,
-      label: lookupModelName(m),
-      status: (votedVoterIds.has(`model:${m}`) ? "done" : "pending") as ParticipantStatus,
-    })),
-    ...players.map((p) => ({
-      id: p.playerId,
-      label: playerId != null && p.playerId === playerId ? "you" : p.displayName,
-      status: (votedVoterIds.has(`user:${p.playerId}`) ? "done" : "pending") as ParticipantStatus,
-      subtitle: playerId != null && p.playerId === playerId && !votedVoterIds.has(`user:${p.playerId}`) ? "not voted yet" : undefined,
+      status: (doneIds.has(playerKeyFn(p)) ? "done" : "pending") as ParticipantStatus,
+      subtitle: playerId != null && p.playerId === playerId && !doneIds.has(playerKeyFn(p)) ? subtitlePending : undefined,
     })),
   ]
 }
@@ -123,8 +91,6 @@ export function useGameProgress({
 }: UseGameProgressParams) {
   const { voteCounts, voterNames } = computeVoteCounts(answers, votes, players)
   const timerDeadline = computeTimerDeadline(game)
-  const respondParticipants = buildRespondParticipants(game, answers, players, llmEvents, playerId)
-  const voteParticipants = buildVoteParticipants(game, votes, players, playerId)
   const answeredModelIds = new Set(answers.map((a) => a.model))
   const failedModelIds = new Set(
     llmEvents
@@ -132,6 +98,26 @@ export function useGameProgress({
       .map((e) => e.model)
   )
   const votedVoterIds = new Set(votes.map((v) => v.voterId))
+
+  const respondParticipants = buildParticipants(
+    game.playerModels,
+    answeredModelIds,
+    players,
+    playerId,
+    "",
+    (p) => `user:${p.playerId}`,
+    "your answer missing",
+    failedModelIds,
+  )
+  const voteParticipants = buildParticipants(
+    game.voterModels,
+    votedVoterIds,
+    players,
+    playerId,
+    "model:",
+    (p) => `user:${p.playerId}`,
+    "not voted yet",
+  )
 
   return {
     voteCounts,

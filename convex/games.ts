@@ -9,6 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
+import type { FunctionReference } from "convex/server"
 import {
   handleAdvanceToVoting,
   handleAnswerFailure,
@@ -35,6 +36,38 @@ const advanceModeValidator = v.union(
 
 function now() {
   return Date.now()
+}
+
+function handleArgs() {
+  return {
+    gameId: v.id("games"),
+    model: v.string(),
+    text: v.string(),
+    promptText: v.string(),
+    rawResponse: v.string(),
+  } as const
+}
+
+function failureArgs() {
+  return {
+    gameId: v.id("games"),
+    model: v.string(),
+    promptText: v.string(),
+    errorMessage: v.string(),
+  } as const
+}
+
+function triggerMutation(
+  orchestrator: FunctionReference<"action", "internal", { gameId: Id<"games"> }>,
+) {
+  return mutation({
+    args: { gameId: v.id("games") },
+    handler: async (ctx, args) => {
+      await loadGame(ctx, args.gameId)
+      await ctx.scheduler.runAfter(0, orchestrator, { gameId: args.gameId })
+      return { ok: true }
+    },
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -147,29 +180,13 @@ export const advanceToVoting = mutation({
   },
 })
 
-export const triggerGenerateAnswers = mutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    await loadGame(ctx, args.gameId)
+export const triggerGenerateAnswers = triggerMutation(
+  internal.orchestrators.generateAnswers,
+)
 
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
-      gameId: args.gameId,
-    })
-    return { ok: true }
-  },
-})
-
-export const triggerFinalizeGame = mutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    await loadGame(ctx, args.gameId)
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
-      gameId: args.gameId,
-    })
-    return { ok: true }
-  },
-})
+export const triggerFinalizeGame = triggerMutation(
+  internal.orchestrators.tryFinalizeGame,
+)
 
 export const resetGame = mutation({
   args: { gameId: v.id("games") },
@@ -331,53 +348,23 @@ export const leaderboard = query({
 // ---------------------------------------------------------------------------
 
 export const savePromptResult = internalMutation({
-  args: {
-    gameId: v.id("games"),
-    model: v.string(),
-    text: v.string(),
-    promptText: v.string(),
-    rawResponse: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await handlePromptResult(ctx, args)
-  },
+  args: handleArgs(),
+  handler: async (ctx, args) => { await handlePromptResult(ctx, args) },
 })
 
 export const savePromptFailure = internalMutation({
-  args: {
-    gameId: v.id("games"),
-    model: v.string(),
-    promptText: v.string(),
-    errorMessage: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await handlePromptFailure(ctx, args)
-  },
+  args: failureArgs(),
+  handler: async (ctx, args) => { await handlePromptFailure(ctx, args) },
 })
 
 export const saveAnswerResult = internalMutation({
-  args: {
-    gameId: v.id("games"),
-    model: v.string(),
-    text: v.string(),
-    promptText: v.string(),
-    rawResponse: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await handleAnswerResult(ctx, args)
-  },
+  args: handleArgs(),
+  handler: async (ctx, args) => { await handleAnswerResult(ctx, args) },
 })
 
 export const saveAnswerFailure = internalMutation({
-  args: {
-    gameId: v.id("games"),
-    model: v.string(),
-    promptText: v.string(),
-    errorMessage: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await handleAnswerFailure(ctx, args)
-  },
+  args: failureArgs(),
+  handler: async (ctx, args) => { await handleAnswerFailure(ctx, args) },
 })
 
 export const saveModelVote = internalMutation({

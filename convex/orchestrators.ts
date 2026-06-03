@@ -76,6 +76,10 @@ type StageHandlers = {
   onFailure: (error: unknown) => Promise<void>
 }
 
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function runModelStage(
   ctx: ActionCtx,
   model: string,
@@ -126,7 +130,7 @@ export const generatePrompt = internalAction({
             gameId: args.gameId,
             model: data.game.promptModel,
             promptText: prompt,
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: toErrorMessage(error),
           })
         },
       },
@@ -172,7 +176,7 @@ export const generateAnswers = internalAction({
             onFailure: async (error) => {
               await ctx.runMutation(internal.games.saveAnswerFailure, {
                 gameId: args.gameId, model, promptText,
-                errorMessage: error instanceof Error ? error.message : String(error),
+                errorMessage: toErrorMessage(error),
               })
             },
           },
@@ -244,7 +248,7 @@ export const generateModelVotes = internalAction({
                 voterId: `model:${model}`,
                 model,
                 promptText,
-                errorMessage: error instanceof Error ? error.message : String(error),
+                errorMessage: toErrorMessage(error),
               })
             },
           },

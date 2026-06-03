@@ -13,7 +13,7 @@ import { QRCode } from "./qr-code"
 import { WhiteCard } from "./cah/white-card"
 
 import { Button } from "@/components/ui/button"
-import { lookupModelName } from "@/constants/models"
+import { resolveDisplayName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useGameProgress } from "@/hooks/use-game-progress"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
@@ -168,13 +168,7 @@ export default function TVDisplay({
                       key={answer._id}
                       id={answer._id}
                       text={answer.text}
-                      model={
-                        answer.model.startsWith("user:")
-                          ? players.find(
-                              (p) => `user:${p.playerId}` === answer.model
-                            )?.displayName ?? answer.model
-                          : lookupModelName(answer.model)
-                      }
+                      model={resolveDisplayName(answer.model, players)}
                       isFlipped={revealedCardIds.has(answer._id)}
                       isSelected={false}
                       isLoading={false}

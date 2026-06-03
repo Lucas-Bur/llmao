@@ -1,5 +1,5 @@
 import type { Doc, Id } from "convex/_generated/dataModel"
-import { Pencil, Users } from "lucide-react"
+import { Pencil } from "lucide-react"
 
 import { AVAILABLE_MODELS, lookupModelName } from "@/constants/models"
 import { Badge } from "@/components/ui/badge"
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PlayerBadgeList } from "@/components/cah/player-badge-list"
 import {
   Select,
   SelectContent,
@@ -62,28 +63,7 @@ export function HostConfigScreen({
         </button>
       </div>
 
-      <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-        <Users className="h-3 w-3" />
-        {allPlayers.length === 0 ? (
-          <span>—</span>
-        ) : (
-          allPlayers.map((p, i) => (
-            <span key={p.playerId}>
-              {i > 0 && <span className="mx-1">·</span>}
-              <span
-                className={
-                  p.playerId === playerId
-                    ? "font-medium text-foreground"
-                    : undefined
-                }
-              >
-                {p.displayName}
-                {p.isHost && " 👑"}
-              </span>
-            </span>
-          ))
-        )}
-      </div>
+      <PlayerBadgeList players={allPlayers} playerId={playerId} />
 
       <p className="mb-6 text-sm text-muted-foreground">
         Configure the game before it starts

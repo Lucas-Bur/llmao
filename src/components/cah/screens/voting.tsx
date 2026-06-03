@@ -1,7 +1,7 @@
 import { WhiteCard } from "@/components/cah/white-card"
 import { PhaseProgress } from "@/components/cah/phase-progress"
 import { Button } from "@/components/ui/button"
-import { lookupModelName } from "@/constants/models"
+import { resolveDisplayName } from "@/constants/models"
 import type { Doc, Id } from "convex/_generated/dataModel"
 import type { Participant } from "@/hooks/use-game-progress"
 
@@ -60,13 +60,7 @@ export function VotingScreen({
             key={answer._id}
             id={answer._id}
             text={answer.text}
-            model={
-              answer.model.startsWith("user:")
-                ? allPlayers.find(
-                    (p) => `user:${p.playerId}` === answer.model,
-                  )?.displayName ?? answer.model
-                : lookupModelName(answer.model)
-            }
+            model={resolveDisplayName(answer.model, allPlayers)}
             isFlipped
             isSelected={selectedCardId === answer._id}
             isLoading={false}
