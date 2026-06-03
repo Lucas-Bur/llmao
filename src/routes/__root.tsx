@@ -14,6 +14,7 @@ import appCss from "../styles.css?url"
 
 import { BreadcrumbProvider, useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { UserMenu } from "@/components/user-menu"
+import { BrandEquation } from "@/components/brand-equation"
 import { UserProvider } from "@/hooks/use-user"
 import AiDevtools from "@/lib/ai-devtools"
 
@@ -65,6 +66,7 @@ function HeaderInner() {
           </div>
           <span className="text-sm font-semibold">LLMAO</span>
         </Link>
+        <BrandEquation />
         <Link
           to="/leaderboard"
           className="ml-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
