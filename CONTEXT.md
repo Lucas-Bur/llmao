@@ -41,3 +41,23 @@ Eine Abstimmung eines Voters (Modell oder Mensch) für eine bestimmte Antwort.
 ## Rating (ELO)
 
 Elo-Wertung pro Modell, aktualisiert nach Spielende via Multi-Player-Elo.
+
+## Spiel-Lebenszyklus (Game State Machine)
+
+Die interne Implementierung des Spiel-Lebenszyklus. Ein tiefer Modul (`convex/state-machine.ts`), der alle Status-Übergänge, Seiteneffekte (Scheduling von LLM-Aufrufen) und automatischen Weiterschaltlogik kapselt. Die öffentlichen Mutationen in `convex/games.ts` sind dünne Adapter, die an dieses Modul delegieren.
+
+### Kern-Interface
+
+- `handleStart(ctx, gameId)` — Startet das Spiel, wechselt von `created` → `prompting`, scheduled Prompt-Generierung
+- `handlePromptResult` / `handlePromptFailure` — Ergebnis/Fehler der Prompt-Generierung verarbeiten
+- `handleAnswerResult` / `handleAnswerFailure` — Ergebnis/Fehler einer KI-Antwort verarbeiten
+- `handleVoteResult` / `handleVoteFailure` — Ergebnis/Fehler einer KI-Abstimmung verarbeiten
+- `handleUserAnswer` / `handleUserVote` — Menschliche Antwort/Abstimmung verarbeiten
+- `handleAdvanceToVoting` / `handleAutoAdvanceToVoting` — Manueller/Timer-gesteuerter Wechsel zu Abstimmung
+- `handleFinalize` / `handleAutoFinalize` — Finalisierung des Spiels, ELO-Berechnung
+
+### Vorteile
+
+- *Leverage*: Ein Interface ersetzt 6 wiederholte "get game → check status" Patterns
+- *Locality*: Alle Übergangslogik an einem Ort; Änderungen konzentrieren sich in einer Datei
+- *Testbar*: Die Naht des Moduls ist die Testoberfläche; 61 Zeilen Duplikat entfernt
