@@ -61,6 +61,29 @@ async function invokeText(
   )
 }
 
+type StageHandlers = {
+  onSuccess: (ctx: ActionCtx, text: string, raw: string) => Promise<void>
+  onFailure: (error: unknown) => Promise<void>
+}
+
+async function runModelStage(
+  ctx: ActionCtx,
+  model: string,
+  system: string,
+  prompt: string,
+  validate: (value: string) => boolean,
+  handlers: StageHandlers,
+  rethrow?: boolean,
+): Promise<void> {
+  try {
+    const raw = await invokeText(model, system, prompt, validate)
+    await handlers.onSuccess(ctx, raw, raw)
+  } catch (error) {
+    await handlers.onFailure(error)
+    if (rethrow) throw error
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 export const generatePrompt = internalAction({
@@ -72,30 +95,33 @@ export const generatePrompt = internalAction({
     const system = writerSystemPrompt()
     const prompt = writerPrompt()
 
-    try {
-      const text = await invokeText(
-        data.game.promptModel,
-        system,
-        prompt,
-        (s) => s.trim().length >= 6
-      )
-
-      await ctx.runMutation(internal.games.savePromptResult, {
-        gameId: args.gameId,
-        model: data.game.promptModel,
-        text,
-        promptText: prompt,
-        rawResponse: text,
-      })
-    } catch (error) {
-      await ctx.runMutation(internal.games.savePromptFailure, {
-        gameId: args.gameId,
-        model: data.game.promptModel,
-        promptText: prompt,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      })
-      throw error
-    }
+    await runModelStage(
+      ctx,
+      data.game.promptModel,
+      system,
+      prompt,
+      (s) => s.trim().length >= 6,
+      {
+        onSuccess: async (ctx, text) => {
+          await ctx.runMutation(internal.games.savePromptResult, {
+            gameId: args.gameId,
+            model: data.game.promptModel,
+            text,
+            promptText: prompt,
+            rawResponse: text,
+          })
+        },
+        onFailure: async (error) => {
+          await ctx.runMutation(internal.games.savePromptFailure, {
+            gameId: args.gameId,
+            model: data.game.promptModel,
+            promptText: prompt,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          })
+        },
+      },
+      true,
+    )
   },
 })
 
@@ -109,40 +135,35 @@ export const generateAnswers = internalAction({
     const system = playerSystemPrompt()
     const promptText = playerPrompt(data.prompt.text)
 
-    // Skip models that already have an answer
     const answeredModels = new Set(data.answers.map((a) => a.model))
-
     const pendingModels = data.game.playerModels.filter(
       (m) => !answeredModels.has(m)
     )
 
     await Promise.all(
-      pendingModels.map(async (model) => {
-        try {
-          const text = await invokeText(
-            model,
-            system,
-            promptText,
-            (s) => s.trim().length > 0
-          )
-
-          await ctx.runMutation(internal.games.saveAnswerResult, {
-            gameId: args.gameId,
-            model,
-            text,
-            promptText,
-            rawResponse: text,
-          })
-        } catch (error) {
-          await ctx.runMutation(internal.games.saveAnswerFailure, {
-            gameId: args.gameId,
-            model,
-            promptText,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
-          })
-        }
-      })
+      pendingModels.map((model) =>
+        runModelStage(
+          ctx,
+          model,
+          system,
+          promptText,
+          (s) => s.trim().length > 0,
+          {
+            onSuccess: async (ctx, text) => {
+              await ctx.runMutation(internal.games.saveAnswerResult, {
+                gameId: args.gameId, model, text,
+                promptText, rawResponse: text,
+              })
+            },
+            onFailure: async (error) => {
+              await ctx.runMutation(internal.games.saveAnswerFailure, {
+                gameId: args.gameId, model, promptText,
+                errorMessage: error instanceof Error ? error.message : String(error),
+              })
+            },
+          },
+        )
+      ),
     )
   },
 })
@@ -157,12 +178,10 @@ export const generateModelVotes = internalAction({
     }
 
     const existingVoterIds = new Set(data.votes.map((vote) => vote.voterId))
-
     const pendingVoters = data.game.voterModels.filter(
       (m) => !existingVoterIds.has(`model:${m}`)
     )
 
-    // Shuffle answers to avoid position bias, build label map
     const shuffled = shuffle(
       data.answers.map((a) => ({ id: a._id, text: a.text }))
     )
@@ -180,35 +199,38 @@ export const generateModelVotes = internalAction({
     const validNumbers = new Set(labeledAnswers.map((_, i) => String(i + 1)))
 
     await Promise.all(
-      pendingVoters.map(async (model) => {
-        const voterId = `model:${model}`
-        try {
-          const raw = await invokeText(model, system, promptText, (s) =>
-            validNumbers.has(s.trim())
-          )
-
-          const index = Number.parseInt(raw.trim(), 10) - 1
-          const chosen = labeledAnswers[index]
-
-          await ctx.runMutation(internal.games.saveModelVote, {
-            gameId: args.gameId,
-            voterId,
-            model,
-            answerId: chosen.id,
-            promptText,
-            rawResponse: raw,
-          })
-        } catch (error) {
-          await ctx.runMutation(internal.games.saveModelVoteFailure, {
-            gameId: args.gameId,
-            voterId,
-            model,
-            promptText,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
-          })
-        }
-      })
+      pendingVoters.map((model) =>
+        runModelStage(
+          ctx,
+          model,
+          system,
+          promptText,
+          (s) => validNumbers.has(s.trim()),
+          {
+            onSuccess: async (ctx, raw) => {
+              const index = Number.parseInt(raw.trim(), 10) - 1
+              const chosen = labeledAnswers[index]
+              await ctx.runMutation(internal.games.saveModelVote, {
+                gameId: args.gameId,
+                voterId: `model:${model}`,
+                model,
+                answerId: chosen.id,
+                promptText,
+                rawResponse: raw,
+              })
+            },
+            onFailure: async (error) => {
+              await ctx.runMutation(internal.games.saveModelVoteFailure, {
+                gameId: args.gameId,
+                voterId: `model:${model}`,
+                model,
+                promptText,
+                errorMessage: error instanceof Error ? error.message : String(error),
+              })
+            },
+          },
+        )
+      ),
     )
   },
 })
