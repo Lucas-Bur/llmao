@@ -14,6 +14,7 @@ import {
   query,
 } from "./_generated/server"
 import { applyMultiPlayerElo } from "./ratings"
+import { assertStatus, PAST_STATUSES } from "./spiel-lifecycle"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +93,7 @@ export const startGame = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "created") throw new Error("Game already started")
+    assertStatus(game, "created")
 
     if (game.playerModels.length === 0) {
       throw new Error("At least one player model required")
@@ -153,9 +154,7 @@ export const submitUserAnswer = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "responding") {
-      throw new Error("Game is not in responding state")
-    }
+    assertStatus(game, "responding")
 
     const model = `${args.authorId}`
 
@@ -227,9 +226,7 @@ export const submitUserVote = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "voting") {
-      throw new Error("Game is not in voting state")
-    }
+    assertStatus(game, "voting")
 
     const answer = await ctx.db.get("answers", args.answerId)
     if (answer?.gameId !== args.gameId) {
@@ -267,9 +264,7 @@ export const advanceToVoting = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "responding") {
-      throw new Error("Game is not in responding state")
-    }
+    assertStatus(game, "responding")
 
     const answers = await ctx.db
       .query("answers")
@@ -361,9 +356,7 @@ export const triggerGeneratePrompt = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "created") {
-      throw new Error("Game is not in created state")
-    }
+    assertStatus(game, "created")
 
     await ctx.db.patch("games", args.gameId, {
       status: "prompting",
@@ -382,9 +375,7 @@ export const triggerGenerateAnswers = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "responding") {
-      throw new Error("Game is not in responding state")
-    }
+    assertStatus(game, "responding")
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
       gameId: args.gameId,
@@ -398,9 +389,7 @@ export const triggerGenerateModelVotes = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "voting") {
-      throw new Error("Game is not in voting state")
-    }
+    assertStatus(game, "voting")
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
       gameId: args.gameId,
@@ -414,9 +403,7 @@ export const triggerFinalizeGame = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "voting") {
-      throw new Error("Game is not in voting state")
-    }
+    assertStatus(game, "voting")
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.tryFinalizeGame, {
       gameId: args.gameId,
@@ -430,7 +417,7 @@ export const resetGame = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.status !== "resolved" && game.status !== "locked") {
+    if (!PAST_STATUSES.includes(game.status)) {
       throw new Error("Can only reset a finished game")
     }
 

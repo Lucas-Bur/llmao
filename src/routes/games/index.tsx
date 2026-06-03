@@ -16,9 +16,7 @@ import {
 } from "@/components/ui/card"
 import { lookupModelName } from "@/constants/models"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-
-const ONGOING_STATUSES = ["created", "prompting", "responding", "voting"]
-const PAST_STATUSES = ["resolved", "locked"]
+import { ONGOING_STATUSES, PAST_STATUSES, type SpielStatus } from "convex/spiel-lifecycle"
 
 const STATUS_LABELS: Record<string, string> = {
   created: "Erstellt",
@@ -77,11 +75,11 @@ function RouteComponent() {
   })
 
   const { data: ongoingGames } = useSuspenseQuery(
-    convexQuery(api.games.listGamesByStatus, { statuses: ONGOING_STATUSES })
+    convexQuery(api.games.listGamesByStatus, { statuses: [...ONGOING_STATUSES] })
   )
 
   const { data: pastGames } = useSuspenseQuery(
-    convexQuery(api.games.listGamesByStatus, { statuses: PAST_STATUSES })
+    convexQuery(api.games.listGamesByStatus, { statuses: [...PAST_STATUSES] })
   )
 
   const handleCreateGame = async () => {
@@ -155,7 +153,7 @@ function GameCard({
 }: Readonly<{
   game: {
     _id: string
-    status: string
+    status: SpielStatus
     promptModel: string
     playerModels: Array<string>
     voterModels: Array<string>
