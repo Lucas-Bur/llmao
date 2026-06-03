@@ -56,3 +56,60 @@ export const PAST_STATUSES: ReadonlyArray<SpielStatus> = [
   "resolved",
   "locked",
 ]
+
+// ---------------------------------------------------------------------------
+// Transition table — single source of truth for named transitions
+// ---------------------------------------------------------------------------
+
+export type TransitionName =
+  | "start"
+  | "promptFailed"
+  | "promptComplete"
+  | "advanceToVoting"
+  | "finalizeGame"
+  | "lockGame"
+
+export type TransitionDef = {
+  from: SpielStatus
+  to: SpielStatus
+  label: string
+  /** Game field to set the current timestamp on when entering `to` status */
+  timestampField?: keyof { respondedAt: number; votingAt: number; resolvedAt: number; lockedAt: number }
+}
+
+export const TRANSITION_TABLE: Record<TransitionName, TransitionDef> = {
+  start: {
+    from: "created",
+    to: "prompting",
+    label: "Start game",
+  },
+  promptFailed: {
+    from: "prompting",
+    to: "created",
+    label: "Prompt failed",
+  },
+  promptComplete: {
+    from: "prompting",
+    to: "responding",
+    label: "Prompt complete",
+    timestampField: "respondedAt",
+  },
+  advanceToVoting: {
+    from: "responding",
+    to: "voting",
+    label: "Advance to voting",
+    timestampField: "votingAt",
+  },
+  finalizeGame: {
+    from: "voting",
+    to: "resolved",
+    label: "Finalize game",
+    timestampField: "resolvedAt",
+  },
+  lockGame: {
+    from: "resolved",
+    to: "locked",
+    label: "Lock game after Elo applied",
+    timestampField: "lockedAt",
+  },
+}

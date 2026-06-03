@@ -16,7 +16,12 @@ import {
 } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { applyMultiPlayerElo } from "./ratings"
-import { assertStatus, PAST_STATUSES } from "./lifecycle"
+import {
+  assertStatus,
+  PAST_STATUSES,
+  TRANSITION_TABLE,
+  type TransitionName,
+} from "./lifecycle"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,6 +29,45 @@ import { assertStatus, PAST_STATUSES } from "./lifecycle"
 
 function now() {
   return Date.now()
+}
+
+type ScheduleTransitionOptions = {
+  onEnter?: (ctx: MutationCtx, gameId: Id<"games">, game: Doc<"games">) => Promise<void>
+  skipIfWrongStatus?: boolean
+}
+
+async function scheduleTransition(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  transition: TransitionName,
+  options?: ScheduleTransitionOptions,
+): Promise<boolean> {
+  const game = await ctx.db.get("games", gameId)
+  if (!game) return false
+
+  const def = TRANSITION_TABLE[transition]
+
+  if (game.status !== def.from) {
+    if (options?.skipIfWrongStatus) return false
+    assertStatus(game, def.from, `Cannot transition "${transition}": ${def.from} → ${def.to}`)
+  }
+
+  const ts = now()
+  const patchFields: Record<string, unknown> = {
+    status: def.to,
+    updatedAt: ts,
+  }
+  if (def.timestampField) {
+    patchFields[def.timestampField] = ts
+  }
+
+  await ctx.db.patch("games", gameId, patchFields)
+
+  if (options?.onEnter) {
+    await options.onEnter(ctx, gameId, game)
+  }
+
+  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -101,13 +145,10 @@ export const startGame = mutation({
       throw new Error("At least one player model required")
     }
 
-    await ctx.db.patch("games", args.gameId, {
-      status: "prompting",
-      updatedAt: now(),
-    })
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
-      gameId: args.gameId,
+    await scheduleTransition(ctx, args.gameId, "start", {
+      onEnter: async (ctx, gameId) => {
+        await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, { gameId })
+      },
     })
     return { ok: true }
   },
@@ -149,24 +190,19 @@ async function advanceGameToVoting(
   gameId: Id<"games">,
   game: Doc<"games">
 ) {
-  const ts = now()
-  await ctx.db.patch("games", gameId, {
-    status: "voting",
-    votingAt: ts,
-    updatedAt: ts,
+  await scheduleTransition(ctx, gameId, "advanceToVoting", {
+    skipIfWrongStatus: true,
+    onEnter: async (ctx, gameId) => {
+      await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, { gameId })
+      if (game.advanceMode === "timer" && game.voteTimeLimit) {
+        await ctx.scheduler.runAfter(
+          game.voteTimeLimit * 1000,
+          internal.games.autoFinalizeGame,
+          { gameId }
+        )
+      }
+    },
   })
-
-  await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
-    gameId,
-  })
-
-  if (game.advanceMode === "timer" && game.voteTimeLimit) {
-    await ctx.scheduler.runAfter(
-      game.voteTimeLimit * 1000,
-      internal.games.autoFinalizeGame,
-      { gameId }
-    )
-  }
 }
 
 async function checkAndAdvanceFromVoting(
@@ -304,7 +340,7 @@ export const autoAdvanceToVoting = internalMutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    if (!game) return
     if (game.status !== "responding") return
 
     const answers = await ctx.db
@@ -322,7 +358,7 @@ export const autoFinalizeGame = internalMutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    if (!game) return
     if (game.status !== "voting") return
 
     await ctx.scheduler.runAfter(0, internal.games.finalizeResolvedGame, {
@@ -499,7 +535,7 @@ export const savePromptResult = internalMutation({
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    if (!game) return
     if (game.status !== "prompting") return
 
     const promptId = await ctx.db.insert("prompts", {
@@ -522,27 +558,22 @@ export const savePromptResult = internalMutation({
       createdAt: now(),
     })
 
-    const ts = now()
-    await ctx.db.patch("games", args.gameId, {
-      status: "responding",
-      promptId,
-      respondedAt: ts,
-      updatedAt: ts,
-    })
+    await scheduleTransition(ctx, args.gameId, "promptComplete", {
+      skipIfWrongStatus: true,
+      onEnter: async (ctx, gameId) => {
+        await ctx.db.patch("games", gameId, { promptId })
 
-    // Auto-schedule answer generation
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
-      gameId: args.gameId,
-    })
+        await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, { gameId })
 
-    // Schedule timer-based advance if configured
-    if (game.advanceMode === "timer" && game.respondTimeLimit) {
-      await ctx.scheduler.runAfter(
-        game.respondTimeLimit * 1000,
-        internal.games.autoAdvanceToVoting,
-        { gameId: args.gameId }
-      )
-    }
+        if (game.advanceMode === "timer" && game.respondTimeLimit) {
+          await ctx.scheduler.runAfter(
+            game.respondTimeLimit * 1000,
+            internal.games.autoAdvanceToVoting,
+            { gameId }
+          )
+        }
+      },
+    })
   },
 })
 
@@ -567,14 +598,9 @@ export const savePromptFailure = internalMutation({
       createdAt: now(),
     })
 
-    // Reset to created so user can retry
-    const game = await ctx.db.get("games", args.gameId)
-    if (game?.status === "prompting") {
-      await ctx.db.patch("games", args.gameId, {
-        status: "created",
-        updatedAt: now(),
-      })
-    }
+    await scheduleTransition(ctx, args.gameId, "promptFailed", {
+      skipIfWrongStatus: true,
+    })
   },
 })
 
@@ -724,7 +750,7 @@ export const finalizeResolvedGame = internalMutation({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
+    if (!game) return
     if (game.status !== "voting") return
 
     const answers = await ctx.db
@@ -749,11 +775,10 @@ export const finalizeResolvedGame = internalMutation({
       voteCounts.set(key, (voteCounts.get(key) ?? 0) + 1)
     }
 
-    await ctx.db.patch("games", args.gameId, {
-      status: "resolved",
-      resolvedAt: now(),
-      updatedAt: now(),
+    const done = await scheduleTransition(ctx, args.gameId, "finalizeGame", {
+      skipIfWrongStatus: true,
     })
+    if (!done) return
 
     // Apply multi-player Elo
     const players = answers.map((a) => ({
@@ -763,10 +788,8 @@ export const finalizeResolvedGame = internalMutation({
 
     await applyMultiPlayerElo(ctx, players)
 
-    await ctx.db.patch("games", args.gameId, {
-      status: "locked",
-      lockedAt: now(),
-      updatedAt: now(),
+    await scheduleTransition(ctx, args.gameId, "lockGame", {
+      skipIfWrongStatus: true,
     })
   },
 })
