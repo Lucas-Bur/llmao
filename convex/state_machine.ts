@@ -507,9 +507,15 @@ export async function handleFinalize(ctx: MutationCtx, gameId: Id<"games">) {
   })
   if (!done) return
 
+  const gamePlayers = await fetchByGameId(ctx, gameId, "players")
+  const playerMap = new Map(gamePlayers.map((p) => [p.playerId, p.displayName]))
+
   const players = answers.map((a) => ({
     model: a.model,
     votes: voteCounts.get(a._id.toString()) ?? 0,
+    displayName: a.model.startsWith("user:")
+      ? (playerMap.get(a.model.slice("user:".length)) ?? undefined)
+      : undefined,
   }))
 
   await applyMultiPlayerElo(ctx, players)

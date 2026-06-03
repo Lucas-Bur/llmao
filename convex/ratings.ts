@@ -49,6 +49,7 @@ export function computeEloChanges(
 type PlayerVoteInput = {
   model: string
   votes: number
+  displayName?: string
 }
 
 export async function getOrCreateRating(ctx: MutationCtx, model: string) {
@@ -103,14 +104,21 @@ export async function applyMultiPlayerElo(
 
   for (let i = 0; i < players.length; i++) {
     const { eloDelta, isWin, isLoss, isDraw } = changes[i]
+    const player = players[i]
 
-    await ctx.db.patch("ratings", ratings[i]._id, {
+    const patch: Record<string, unknown> = {
       elo: ratings[i].elo + eloDelta,
       wins: ratings[i].wins + (isWin ? 1 : 0),
       losses: ratings[i].losses + (isLoss ? 1 : 0),
       draws: ratings[i].draws + (isDraw ? 1 : 0),
       gamesPlayed: ratings[i].gamesPlayed + 1,
       updatedAt: ts,
-    })
+    }
+
+    if (player.displayName) {
+      patch.displayName = player.displayName
+    }
+
+    await ctx.db.patch("ratings", ratings[i]._id, patch)
   }
 }

@@ -81,6 +81,7 @@ export default defineSchema({
 
   ratings: defineTable({
     model: v.string(),
+    displayName: v.optional(v.string()),
     elo: v.number(),
     wins: v.number(),
     losses: v.number(),

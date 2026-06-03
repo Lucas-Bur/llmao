@@ -63,7 +63,7 @@ function RouteComponent() {
               className="grid grid-cols-[2rem_1fr_5rem_5rem_4rem] gap-4 px-6 py-3 text-sm even:bg-muted/30"
             >
               <span className="text-muted-foreground">{i + 1}</span>
-              <span className="truncate">{lookupLeaderboardName(r.model)}</span>
+              <span className="truncate">{r.displayName ?? lookupLeaderboardName(r.model)}</span>
               <span className="text-right font-medium tabular-nums">
                 {Math.round(r.elo)}
               </span>
