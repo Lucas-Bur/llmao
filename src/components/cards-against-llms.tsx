@@ -7,6 +7,7 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 
 import { BlackCard } from "./cah/black-card"
+import { PhaseProgress } from "./cah/phase-progress"
 import { GameStepper } from "./cah/game-stepper"
 import { QRCode } from "./qr-code"
 import { WhiteCard } from "./cah/white-card"
@@ -16,7 +17,7 @@ import { lookupModelName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useGameProgress } from "@/hooks/use-game-progress"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-import { CountdownTimer } from "./cah/countdown-timer"
+
 
 const SHOW_CARDS_STATUSES = new Set([
   "voting",
@@ -198,69 +199,43 @@ export default function TVDisplay({
         <div className="flex w-56 flex-col gap-4 border-l p-4">
           {/* Player progress */}
           {game.status === "responding" && (
-            <div className="text-xs">
-              <p className="mb-2 font-medium text-foreground">Answers</p>
-              <div className="space-y-1 text-muted-foreground">
-                {expectedAIPlayers.map((m) => (
-                  <div key={m} className="flex justify-between">
-                    <span className={answeredModelIds.has(m) ? "text-green-600" : failedModelIds.has(m) ? "text-destructive" : undefined}>
-                      {lookupModelName(m)}
-                    </span>
-                    <span>{answeredModelIds.has(m) ? "✓" : failedModelIds.has(m) ? "✗" : "⟳"}</span>
-                  </div>
-                ))}
-                {players.map((p) => (
-                  <div key={p.playerId} className="flex justify-between">
-                    <span className={answeredModelIds.has(`user:${p.playerId}`) ? "text-green-600" : undefined}>
-                      {p.displayName}
-                    </span>
-                    <span>{answeredModelIds.has(`user:${p.playerId}`) ? "✓" : "⟳"}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center justify-between text-muted-foreground">
-                <span>
-                  {answeredModelIds.size}/{expectedAIPlayers.length + players.length}
-                </span>
-                {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
-              </div>
-            </div>
+            <PhaseProgress
+              label="Answers"
+              variant="sidebar"
+              participants={[
+                ...expectedAIPlayers.map((m) => ({
+                  id: m,
+                  label: lookupModelName(m),
+                  status: failedModelIds.has(m) ? "failed" as const : answeredModelIds.has(m) ? "done" as const : "pending" as const,
+                })),
+                ...players.map((p) => ({
+                  id: p.playerId,
+                  label: p.displayName,
+                  status: answeredModelIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
+                })),
+              ]}
+              timerDeadline={timerDeadline}
+            />
           )}
 
           {game.status === "voting" && (
-            <div className="text-xs">
-              <p className="mb-2 font-medium text-foreground">Voting</p>
-              <div className="space-y-1 text-muted-foreground">
-                {expectedVoters.map((m) => {
-                  const voted = votedVoterIds.has(`model:${m}`)
-                  return (
-                    <div key={m} className="flex justify-between">
-                      <span className={voted ? "text-green-600" : undefined}>
-                        {lookupModelName(m)}
-                      </span>
-                      <span>{voted ? "✓" : "⟳"}</span>
-                    </div>
-                  )
-                })}
-                {players.map((p) => {
-                  const voted = votedVoterIds.has(`user:${p.playerId}`)
-                  return (
-                    <div key={p.playerId} className="flex justify-between">
-                      <span className={voted ? "text-green-600" : undefined}>
-                        {p.displayName}
-                      </span>
-                      <span>{voted ? "✓" : "⟳"}</span>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-3 flex items-center justify-between text-muted-foreground">
-                <span>
-                  {votedVoterIds.size}/{expectedVoters.length + players.length}
-                </span>
-                {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
-              </div>
-            </div>
+            <PhaseProgress
+              label="Voting"
+              variant="sidebar"
+              participants={[
+                ...expectedVoters.map((m) => ({
+                  id: m,
+                  label: lookupModelName(m),
+                  status: votedVoterIds.has(`model:${m}`) ? "done" as const : "pending" as const,
+                })),
+                ...players.map((p) => ({
+                  id: p.playerId,
+                  label: p.displayName,
+                  status: votedVoterIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
+                })),
+              ]}
+              timerDeadline={timerDeadline}
+            />
           )}
 
           {/* QR code + join */}

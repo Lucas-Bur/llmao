@@ -113,39 +113,6 @@ export const startGame = mutation({
   },
 })
 
-export const tryAdvanceFromResponding = internalMutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
-    if (game.advanceMode === "manual") return
-    if (game.status !== "responding") return
-
-    const answers = await ctx.db
-      .query("answers")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const humanPlayers = await ctx.db
-      .query("players")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const answeredModels = new Set(answers.map((a) => a.model))
-    const allAIModelsAnswered = game.playerModels.every((m) =>
-      answeredModels.has(m)
-    )
-    const allHumansAnswered = humanPlayers.every((p) =>
-      answeredModels.has(`user:${p.playerId}`)
-    )
-
-    if (allAIModelsAnswered && allHumansAnswered && answers.length >= 2) {
-      await ctx.scheduler.runAfter(0, internal.games.autoAdvanceToVoting, {
-        gameId: args.gameId,
-      })
-    }
-  },
-})
 
 async function checkAndAdvanceFromResponding(
   ctx: MutationCtx,
@@ -270,39 +237,6 @@ export const submitUserAnswer = mutation({
   },
 })
 
-export const tryAdvanceFromVoting = internalMutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
-    if (game.advanceMode === "manual") return
-    if (game.status !== "voting") return
-
-    const votes = await ctx.db
-      .query("votes")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const humanPlayers = await ctx.db
-      .query("players")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
-    const existingVoterIds = new Set(votes.map((v) => v.voterId))
-    const allAIVoted = game.voterModels.every(
-      (m) => existingVoterIds.has(`model:${m}`)
-    )
-    const allHumansVoted = humanPlayers.every((p) =>
-      existingVoterIds.has(`user:${p.playerId}`)
-    )
-
-    if (allAIVoted && allHumansVoted) {
-      await ctx.scheduler.runAfter(0, internal.games.autoFinalizeGame, {
-        gameId: args.gameId,
-      })
-    }
-  },
-})
 
 export const submitUserVote = mutation({
   args: {
@@ -401,24 +335,6 @@ export const autoFinalizeGame = internalMutation({
 // Trigger mutations (schedule internal actions)
 // ---------------------------------------------------------------------------
 
-export const triggerGeneratePrompt = mutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
-    assertStatus(game, "created")
-
-    await ctx.db.patch("games", args.gameId, {
-      status: "prompting",
-      updatedAt: now(),
-    })
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
-      gameId: args.gameId,
-    })
-    return { ok: true }
-  },
-})
 
 export const triggerGenerateAnswers = mutation({
   args: { gameId: v.id("games") },
@@ -434,19 +350,6 @@ export const triggerGenerateAnswers = mutation({
   },
 })
 
-export const triggerGenerateModelVotes = mutation({
-  args: { gameId: v.id("games") },
-  handler: async (ctx, args) => {
-    const game = await ctx.db.get("games", args.gameId)
-    if (!game) throw new Error("Game not found")
-    assertStatus(game, "voting")
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
-      gameId: args.gameId,
-    })
-    return { ok: true }
-  },
-})
 
 export const triggerFinalizeGame = mutation({
   args: { gameId: v.id("games") },

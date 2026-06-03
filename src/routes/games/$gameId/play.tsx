@@ -7,6 +7,7 @@ import { Pencil, Users } from "lucide-react"
 import { Suspense, useEffect, useMemo, useState } from "react"
 
 import { BlackCard } from "@/components/cah/black-card"
+import { PhaseProgress } from "@/components/cah/phase-progress"
 import { WhiteCard } from "@/components/cah/white-card"
 import { AVAILABLE_MODELS, lookupModelName } from "@/constants/models"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select"
 import { useUser } from "@/hooks/use-user"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-import { CountdownTimer } from "@/components/cah/countdown-timer"
+
 import { useGameProgress } from "@/hooks/use-game-progress"
 import { getPlayerId } from "@/lib/storage"
 
@@ -517,49 +518,23 @@ function RouteComponent() {
       {/* ───── Responding ───── */}
       {game.status === "responding" && (
         <div className="space-y-3">
-          {/* Submission progress */}
-          <div className="rounded-none border bg-muted p-3">
-            <div className="mb-2 flex items-center gap-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                Answers:{" "}
-                {expectedAIPlayers.filter((m) => answeredModelIds.has(m)).length +
-                  allPlayers.filter((p) => answeredModelIds.has(`user:${p.playerId}`)).length}
-                /{expectedAIPlayers.length + allPlayers.length}
-              </p>
-              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
-            </div>
-            <ul className="space-y-1 text-xs">
-              {expectedAIPlayers.map((m) => {
-                const failed = failedModelIds.has(m)
-                const done = answeredModelIds.has(m)
-                return (
-                  <li
-                    key={m}
-                    className={failed ? "text-destructive" : done ? "text-green-600" : "text-muted-foreground"}
-                  >
-                    {done ? "✓" : failed ? "✗" : "⟳"}{" "}
-                    {lookupModelName(m)}
-                    {failed && " — failed"}
-                  </li>
-                )
-              })}
-              {allPlayers.map((p) => {
-                const model = `user:${p.playerId}`
-                const isMe = p.playerId === playerId
-                const done = answeredModelIds.has(model)
-                return (
-                  <li
-                    key={p.playerId}
-                    className={done ? "text-green-600" : "text-muted-foreground"}
-                  >
-                    {done ? "✓" : "⟳"}{" "}
-                    {isMe ? "you" : p.displayName}
-                    {isMe && !done && " (your answer missing)"}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
+          <PhaseProgress
+            label="Answers"
+            participants={[
+              ...expectedAIPlayers.map((m) => ({
+                id: m,
+                label: lookupModelName(m),
+                status: failedModelIds.has(m) ? "failed" as const : answeredModelIds.has(m) ? "done" as const : "pending" as const,
+              })),
+              ...allPlayers.map((p) => ({
+                id: p.playerId,
+                label: p.playerId === playerId ? "you" : p.displayName,
+                status: answeredModelIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
+                subtitle: p.playerId === playerId && !answeredModelIds.has(`user:${p.playerId}`) ? "your answer missing" : undefined,
+              })),
+            ]}
+            timerDeadline={timerDeadline}
+          />
 
           {/* Answer input or confirmation */}
           {!hasUserSubmittedCard ? (
@@ -612,45 +587,23 @@ function RouteComponent() {
       {/* ───── Voting ───── */}
       {game.status === "voting" && (
         <div className="space-y-3">
-          {/* Vote progress */}
-          <div className="rounded-none border bg-muted p-3">
-            <div className="mb-2 flex items-center gap-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                Votes:{" "}
-                {expectedVoters.filter((m) => votedVoterIds.has(`model:${m}`)).length +
-                  allPlayers.filter((p) => votedVoterIds.has(`user:${p.playerId}`)).length}
-                /{expectedVoters.length + allPlayers.length}
-              </p>
-              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
-            </div>
-            <ul className="space-y-1 text-xs">
-              {expectedVoters.map((m) => {
-                const voted = votedVoterIds.has(`model:${m}`)
-                return (
-                  <li
-                    key={m}
-                    className={voted ? "text-green-600" : "text-muted-foreground"}
-                  >
-                    {voted ? "✓" : "⟳"} {lookupModelName(m)}
-                  </li>
-                )
-              })}
-              {allPlayers.map((p) => {
-                const voterId = `user:${p.playerId}`
-                const isMe = p.playerId === playerId
-                const voted = votedVoterIds.has(voterId)
-                return (
-                  <li
-                    key={p.playerId}
-                    className={voted ? "text-green-600" : "text-muted-foreground"}
-                  >
-                    {voted ? "✓" : "⟳"}                     {isMe ? "you" : p.displayName}
-                    {isMe && !voted && " (not voted yet)"}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
+          <PhaseProgress
+            label="Votes"
+            participants={[
+              ...expectedVoters.map((m) => ({
+                id: m,
+                label: lookupModelName(m),
+                status: votedVoterIds.has(`model:${m}`) ? "done" as const : "pending" as const,
+              })),
+              ...allPlayers.map((p) => ({
+                id: p.playerId,
+                label: p.playerId === playerId ? "you" : p.displayName,
+                status: votedVoterIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
+                subtitle: p.playerId === playerId && !votedVoterIds.has(`user:${p.playerId}`) ? "not voted yet" : undefined,
+              })),
+            ]}
+            timerDeadline={timerDeadline}
+          />
 
           {/* Card vote UI — all face-up, own card hidden */}
           <div className="space-y-2">
