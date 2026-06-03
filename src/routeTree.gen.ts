@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GamesIndexRouteImport } from './routes/games/index'
 import { Route as GamesGameIdIndexRouteImport } from './routes/games/$gameId/index'
 import { Route as GamesGameIdPlayRouteImport } from './routes/games/$gameId/play'
 
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const GamesGameIdPlayRoute = GamesGameIdPlayRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/games/': typeof GamesIndexRoute
   '/games/$gameId/play': typeof GamesGameIdPlayRoute
   '/games/$gameId/': typeof GamesGameIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/games': typeof GamesIndexRoute
   '/games/$gameId/play': typeof GamesGameIdPlayRoute
   '/games/$gameId': typeof GamesGameIdIndexRoute
@@ -50,20 +58,33 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/games/': typeof GamesIndexRoute
   '/games/$gameId/play': typeof GamesGameIdPlayRoute
   '/games/$gameId/': typeof GamesGameIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/games/' | '/games/$gameId/play' | '/games/$gameId/'
+  fullPaths:
+    | '/'
+    | '/leaderboard'
+    | '/games/'
+    | '/games/$gameId/play'
+    | '/games/$gameId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/games' | '/games/$gameId/play' | '/games/$gameId'
-  id: '__root__' | '/' | '/games/' | '/games/$gameId/play' | '/games/$gameId/'
+  to: '/' | '/leaderboard' | '/games' | '/games/$gameId/play' | '/games/$gameId'
+  id:
+    | '__root__'
+    | '/'
+    | '/leaderboard'
+    | '/games/'
+    | '/games/$gameId/play'
+    | '/games/$gameId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LeaderboardRoute: typeof LeaderboardRoute
   GamesIndexRoute: typeof GamesIndexRoute
   GamesGameIdPlayRoute: typeof GamesGameIdPlayRoute
   GamesGameIdIndexRoute: typeof GamesGameIdIndexRoute
@@ -71,6 +92,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +132,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LeaderboardRoute: LeaderboardRoute,
   GamesIndexRoute: GamesIndexRoute,
   GamesGameIdPlayRoute: GamesGameIdPlayRoute,
   GamesGameIdIndexRoute: GamesGameIdIndexRoute,

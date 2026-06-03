@@ -1,3 +1,5 @@
+import { getUniqueNameFromId } from "@/hooks/use-unique-names"
+
 const MODEL_DATA = {
   // Meta / Llama
   "meta-llama/llama-3.3-70b-instruct": "Llama 3.3 70B",
@@ -10,7 +12,9 @@ const MODEL_DATA = {
   "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
   "google/gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite",
   "google/gemini-2.5-flash": "Gemini 2.5 Flash",
+  "google/gemini-2.5-flash-lite-preview-09-2025": "Gemini 2.5 Flash Lite",
   "google/gemma-4-31b-it": "Gemma 4 31B",
+  "google/gemma-3-12b-it": "Gemma 3 12B",
 
   // NousResearch / Hermes
   "nousresearch/hermes-4-405b": "Hermes 4 405B",
@@ -19,6 +23,7 @@ const MODEL_DATA = {
   "qwen/qwen3.7-max": "Qwen3.7 Max",
   "qwen/qwen3.6-plus": "Qwen3.6 Plus",
   "qwen/qwen-2.5-72b-instruct": "Qwen 2.5 72B",
+  "qwen/qwen-2.5-7b-instruct": "Qwen 2.5 7B",
 
   // Mistral
   "mistralai/mistral-large-2512": "Mistral Large 3",
@@ -34,11 +39,14 @@ const MODEL_DATA = {
   "anthropic/claude-opus-4.8": "Claude Opus 4.8",
   "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
   "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
+  "anthropic/claude-3.5-haiku": "Claude 3.5 Haiku",
 
   // OpenAI
   "openai/gpt-5.5-pro": "GPT-5.5 Pro",
   "openai/gpt-5.4": "GPT-5.4",
   "openai/gpt-5.4-mini": "GPT-5.4 Mini",
+  "openai/gpt-5-nano": "GPT-5 Nano",
+  "openai/gpt-4.1-mini": "GPT-4.1 Mini",
   "openai/gpt-4o": "GPT-4o",
   "openai/gpt-4o-mini": "GPT-4o Mini",
 
@@ -67,13 +75,14 @@ const MODEL_DATA = {
   "nvidia/nemotron-3-super-120b-a12b": "Nemotron 3 Super",
   "inception/mercury-2": "Mercury 2",
   "stepfun/step-3.7-flash": "Step 3.7 Flash",
+  "xiaomi/mimo-v2-flash": "MiMo V2 Flash",
 } as const
 
 type ModelId = keyof typeof MODEL_DATA
 
 export function lookupModelName<T extends ModelId | (string & {})>(
   modelId: T
-): T extends ModelId ? (typeof MODEL_DATA)[T] : "Unbekannt" {
+): T extends ModelId ? (typeof MODEL_DATA)[T] : `Unknown: ${typeof modelId}` {
   if (modelId in MODEL_DATA) {
     return MODEL_DATA[modelId as ModelId] as never
   }
@@ -83,3 +92,27 @@ export function lookupModelName<T extends ModelId | (string & {})>(
 export const AVAILABLE_MODELS: Array<ModelId> = Object.keys(
   MODEL_DATA
 ) as Array<ModelId>
+
+const USER_PREFIX = "user:"
+const MODEL_PREFIX = "model:"
+
+export function lookupLeaderboardName(id: string): string {
+  if (id.startsWith(USER_PREFIX)) {
+    return `Player ${getUniqueNameFromId(id)}`
+  }
+  return lookupModelName(id)
+}
+
+export function resolveDisplayName(
+  id: string,
+  players: Array<{ playerId: string; displayName: string }>,
+): string {
+  if (id.startsWith(USER_PREFIX)) {
+    const pid = id.slice(USER_PREFIX.length)
+    return players.find((p) => p.playerId === pid)?.displayName ?? id
+  }
+  if (id.startsWith(MODEL_PREFIX)) {
+    return lookupModelName(id.slice(MODEL_PREFIX.length))
+  }
+  return lookupModelName(id)
+}

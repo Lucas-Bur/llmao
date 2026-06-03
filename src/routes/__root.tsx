@@ -65,6 +65,13 @@ function HeaderInner() {
           </div>
           <span className="text-sm font-semibold">LLMAO</span>
         </Link>
+        <Link
+          to="/leaderboard"
+          className="ml-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          activeProps={{ className: "text-foreground font-medium" }}
+        >
+          Leaderboard
+        </Link>
         {breadcrumb && (
           <span className="text-xs text-muted-foreground/50">/</span>
         )}

@@ -10,7 +10,7 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-function getUniqueNameFromId(id: string | number) {
+export function getUniqueNameFromId(id: string | number) {
   let index: bigint
 
   if (typeof id === "number") {
