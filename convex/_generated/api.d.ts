@@ -11,6 +11,7 @@
 import type * as data_prompts from "../data/prompts.js";
 import type * as games from "../games.js";
 import type * as orchestrators from "../orchestrators.js";
+import type * as players from "../players.js";
 import type * as prompts from "../prompts.js";
 import type * as ratings from "../ratings.js";
 import type * as utils from "../utils.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   "data/prompts": typeof data_prompts;
   games: typeof games;
   orchestrators: typeof orchestrators;
+  players: typeof players;
   prompts: typeof prompts;
   ratings: typeof ratings;
   utils: typeof utils;

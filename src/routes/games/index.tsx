@@ -69,9 +69,12 @@ function RouteComponent() {
 
   const handleCreateGame = async () => {
     const newGameId = await createGameMutation({
+      hostId: "user:current",
       playerModels: [],
       promptModel: "google/gemini-2.5-flash-lite-preview-09-2025",
       voterModels: [],
+      language: "de",
+      advanceMode: "all_answered",
     })
     await router.navigate({
       to: "/games/$gameId",

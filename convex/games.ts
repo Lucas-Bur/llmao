@@ -1,6 +1,12 @@
 import { v } from "convex/values"
 
 import { internal } from "./_generated/api"
+
+const advanceModeValidator = v.union(
+  v.literal("all_answered"),
+  v.literal("timer"),
+  v.literal("manual")
+)
 import {
   internalMutation,
   internalQuery,
@@ -23,17 +29,27 @@ function now() {
 
 export const createGame = mutation({
   args: {
+    hostId: v.string(),
     promptModel: v.string(),
     playerModels: v.array(v.string()),
     voterModels: v.array(v.string()),
+    language: v.string(),
+    advanceMode: advanceModeValidator,
+    respondTimeLimit: v.optional(v.number()),
+    voteTimeLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const ts = now()
     return await ctx.db.insert("games", {
       status: "created",
+      hostId: args.hostId,
       promptModel: args.promptModel,
       playerModels: args.playerModels,
       voterModels: args.voterModels,
+      language: args.language,
+      advanceMode: args.advanceMode,
+      respondTimeLimit: args.respondTimeLimit,
+      voteTimeLimit: args.voteTimeLimit,
       createdAt: ts,
       updatedAt: ts,
     })
@@ -46,20 +62,77 @@ export const updateGame = mutation({
     promptModel: v.optional(v.string()),
     playerModels: v.optional(v.array(v.string())),
     voterModels: v.optional(v.array(v.string())),
+    language: v.optional(v.string()),
+    advanceMode: v.optional(v.union(v.literal("all_answered"), v.literal("timer"), v.literal("manual"))),
+    respondTimeLimit: v.optional(v.number()),
+    voteTimeLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const ts = now()
 
-    const update = {
+    const update: Record<string, unknown> = {
       updatedAt: ts,
       ...(args.promptModel !== undefined && { promptModel: args.promptModel }),
       ...(args.playerModels !== undefined && {
         playerModels: args.playerModels,
       }),
       ...(args.voterModels !== undefined && { voterModels: args.voterModels }),
+      ...(args.language !== undefined && { language: args.language }),
+      ...(args.advanceMode !== undefined && { advanceMode: args.advanceMode }),
+      ...(args.respondTimeLimit !== undefined && { respondTimeLimit: args.respondTimeLimit }),
+      ...(args.voteTimeLimit !== undefined && { voteTimeLimit: args.voteTimeLimit }),
     }
 
     await ctx.db.patch("games", args.gameId, update)
+  },
+})
+
+export const startGame = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.status !== "created") throw new Error("Game already started")
+
+    if (game.playerModels.length === 0) {
+      throw new Error("At least one player model required")
+    }
+
+    await ctx.db.patch("games", args.gameId, {
+      status: "prompting",
+      updatedAt: now(),
+    })
+
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generatePrompt, {
+      gameId: args.gameId,
+    })
+    return { ok: true }
+  },
+})
+
+export const tryAdvanceFromResponding = internalMutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.advanceMode !== "all_answered") return
+    if (game.status !== "responding") return
+
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    const answeredModels = new Set(answers.map((a) => a.model))
+    const allAIModelsAnswered = game.playerModels.every((m) =>
+      answeredModels.has(m)
+    )
+
+    if (allAIModelsAnswered && answers.length >= 2) {
+      await ctx.scheduler.runAfter(0, internal.games.autoAdvanceToVoting, {
+        gameId: args.gameId,
+      })
+    }
   },
 })
 
@@ -95,7 +168,37 @@ export const submitUserAnswer = mutation({
       createdAt: now(),
     })
 
+    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromResponding, {
+      gameId: args.gameId,
+    })
+
     return { ok: true }
+  },
+})
+
+export const tryAdvanceFromVoting = internalMutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.advanceMode !== "all_answered") return
+    if (game.status !== "voting") return
+
+    const votes = await ctx.db
+      .query("votes")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    const existingVoterIds = new Set(votes.map((v) => v.voterId))
+    const allVoted = game.voterModels.every(
+      (m) => existingVoterIds.has(`model:${m}`)
+    )
+
+    if (allVoted) {
+      await ctx.scheduler.runAfter(0, internal.games.autoFinalizeGame, {
+        gameId: args.gameId,
+      })
+    }
   },
 })
 
@@ -135,6 +238,10 @@ export const submitUserVote = mutation({
       createdAt: now(),
     })
 
+    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromVoting, {
+      gameId: args.gameId,
+    })
+
     return { ok: true }
   },
 })
@@ -162,7 +269,66 @@ export const advanceToVoting = mutation({
       updatedAt: now(),
     })
 
+    // Auto-schedule model votes + finalize
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
+      gameId: args.gameId,
+    })
+
+    if (game.advanceMode === "timer" && game.voteTimeLimit) {
+      await ctx.scheduler.runAfter(
+        game.voteTimeLimit * 1000,
+        internal.games.autoFinalizeGame,
+        { gameId: args.gameId }
+      )
+    }
+
     return { ok: true }
+  },
+})
+
+export const autoAdvanceToVoting = internalMutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.status !== "responding") return
+
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    if (answers.length < 2) return
+
+    await ctx.db.patch("games", args.gameId, {
+      status: "voting",
+      updatedAt: now(),
+    })
+
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
+      gameId: args.gameId,
+    })
+
+    if (game.advanceMode === "timer" && game.voteTimeLimit) {
+      await ctx.scheduler.runAfter(
+        game.voteTimeLimit * 1000,
+        internal.games.autoFinalizeGame,
+        { gameId: args.gameId }
+      )
+    }
+  },
+})
+
+export const autoFinalizeGame = internalMutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.status !== "voting") return
+
+    await ctx.scheduler.runAfter(0, internal.games.finalizeResolvedGame, {
+      gameId: args.gameId,
+    })
   },
 })
 
@@ -263,7 +429,12 @@ export const getGame = query({
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
       .collect()
 
-    return { game, prompt, answers, votes }
+    const players = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    return { game, prompt, answers, votes, players }
   },
 })
 
@@ -342,6 +513,20 @@ export const savePromptResult = internalMutation({
       promptId,
       updatedAt: now(),
     })
+
+    // Auto-schedule answer generation
+    await ctx.scheduler.runAfter(0, internal.orchestrators.generateAnswers, {
+      gameId: args.gameId,
+    })
+
+    // Schedule timer-based advance if configured
+    if (game.advanceMode === "timer" && game.respondTimeLimit) {
+      await ctx.scheduler.runAfter(
+        game.respondTimeLimit * 1000,
+        internal.games.autoAdvanceToVoting,
+        { gameId: args.gameId }
+      )
+    }
   },
 })
 
@@ -420,6 +605,11 @@ export const saveAnswerResult = internalMutation({
     })
 
     await ctx.db.patch("games", args.gameId, { updatedAt: now() })
+
+    // Auto-advance if all AI models have answered
+    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromResponding, {
+      gameId: args.gameId,
+    })
   },
 })
 
@@ -484,6 +674,11 @@ export const saveModelVote = internalMutation({
       success: true,
       locked: true,
       createdAt: now(),
+    })
+
+    // Auto-advance if all AI voters have voted
+    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromVoting, {
+      gameId: args.gameId,
     })
   },
 })
@@ -587,6 +782,11 @@ export const getGameInternal = internalQuery({
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
       .collect()
 
-    return { game, prompt, answers, votes }
+    const players = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    return { game, prompt, answers, votes, players }
   },
 })

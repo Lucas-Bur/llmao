@@ -10,12 +10,23 @@ const gameStatus = v.union(
   v.literal("locked")
 )
 
+const advanceMode = v.union(
+  v.literal("all_answered"),
+  v.literal("timer"),
+  v.literal("manual")
+)
+
 export default defineSchema({
   games: defineTable({
     status: gameStatus,
+    hostId: v.optional(v.string()),
     promptModel: v.string(),
     playerModels: v.array(v.string()),
     voterModels: v.array(v.string()),
+    language: v.optional(v.string()),
+    advanceMode: v.optional(advanceMode),
+    respondTimeLimit: v.optional(v.number()),
+    voteTimeLimit: v.optional(v.number()),
 
     promptId: v.optional(v.id("prompts")),
 
@@ -26,6 +37,16 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_createdAt", ["createdAt"]),
+
+  players: defineTable({
+    gameId: v.id("games"),
+    playerId: v.string(),
+    displayName: v.string(),
+    isHost: v.boolean(),
+    joinedAt: v.number(),
+  })
+    .index("by_gameId", ["gameId"])
+    .index("by_gameId_playerId", ["gameId", "playerId"]),
 
   prompts: defineTable({
     gameId: v.id("games"),

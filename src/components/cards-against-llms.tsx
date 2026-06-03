@@ -1,207 +1,58 @@
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
-import { Link, useRouter } from "@tanstack/react-router"
+import { convexQuery } from "@convex-dev/react-query"
+import { useSuspenseQuery } from "@tanstack/react-query"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { ChevronRight, Smile } from "lucide-react"
-import { useMemo, useState } from "react"
+import { ChevronRight, Smartphone, Smile } from "lucide-react"
 
-import { ActionFooter } from "./cah/action-footer"
 import { BlackCard } from "./cah/black-card"
-import { SidePanel } from "./cah/side-panel"
-import { SubmitCardModal } from "./cah/submit-card-modal"
-import type { Game } from "./cah/types"
+import { GameStepper } from "./cah/game-stepper"
 import { WhiteCard } from "./cah/white-card"
-import { SidebarInset, SidebarProvider } from "./ui/sidebar"
 
+import { Button } from "@/components/ui/button"
+import { lookupModelName } from "@/constants/models"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
 
-const userId = "user:current"
-
-export default function FusionPrototype({
+export default function TVDisplay({
   gameId,
-}: Readonly<{ gameId: Game["_id"] }>) {
-  const router = useRouter()
-
-  // Queries
+}: Readonly<{ gameId: string }>) {
+  const navigate = useNavigate()
   const { data: gameObject } = useSuspenseQuery(
-    convexQuery(api.games.getGame, { gameId })
+    convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> })
   )
 
-  // Mutations
-  const { mutateAsync: submitUserAnswerMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.submitUserAnswer),
-  })
-  const { mutateAsync: submitUserVoteMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.submitUserVote),
-  })
-  const { mutateAsync: advanceToVotingMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.advanceToVoting),
-  })
-  const { mutateAsync: triggerGeneratePromptMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.triggerGeneratePrompt),
-  })
-  const { mutateAsync: triggerGenerateModelVotesMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.triggerGenerateModelVotes),
-  })
-  const { mutateAsync: triggerFinalizeGameMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.triggerFinalizeGame),
-  })
-  const { mutateAsync: createGameMutation } = useMutation({
-    mutationFn: useConvexMutation(api.games.createGame),
-  })
+  if (!gameObject) {
+    return <div className="p-6 text-sm text-muted-foreground">Spiel wird geladen...</div>
+  }
+  const game = gameObject.game
+  const prompt = gameObject.prompt
+  const allAnswers = gameObject.answers ?? []
+  const votes = gameObject.votes ?? []
+  const players = gameObject.players ?? []
 
-  // Game state
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const game = gameObject!.game
-  const gameStatus = game.status
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const prompt = gameObject!.prompt
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const allAnswers = gameObject!.answers
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const votes = gameObject!.votes
-
-  // const userAnswer = allAnswers.find((a) => a.model === userId)
-
-  const whiteCardCount = allAnswers.length
-
-  const [hasUserVoted, setHasUserVoted] = useState(false)
-  const [hasUserSubmittedCard, setHasUserSubmittedCard] = useState(false)
-
-  // UI state
-  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
-  const [selectedCardId, setSelectedCardId] = useState<string | undefined>()
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
-
-  // Computed values
-  const allCardsFlipped = useMemo(() => {
-    return allAnswers.length > 0 && allAnswers.every((a) => flippedCards[a._id])
-  }, [allAnswers, flippedCards])
-
-  // Get vote counts per answer
-  const voteCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    const voterNames: Record<string, Array<string>> = {}
-
-    for (const answer of allAnswers) {
-      counts[answer._id] = 0
-      voterNames[answer._id] = []
-    }
-
-    for (const vote of votes) {
-      counts[vote.answerId] = (counts[vote.answerId] || 0) + 1
-      const voterModel = vote.voterId.replace("model:", "")
-      voterNames[vote.answerId].push(voterModel)
-    }
-
-    return { counts, voterNames }
-  }, [allAnswers, votes])
-
-  // Handlers
-  const handleFlipCard = (answerId: string) => {
-    setFlippedCards((previous) => ({ ...previous, [answerId]: true }))
+  const voteCounts: Record<string, number> = {}
+  const voterNames: Record<string, Array<string>> = {}
+  for (const answer of allAnswers) {
+    voteCounts[answer._id] = 0
+    voterNames[answer._id] = []
+  }
+  for (const vote of votes) {
+    voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
+    const name = vote.voterId.replace("model:", "")
+    voterNames[vote.answerId].push(name)
   }
 
-  const handleSelectCard = (answerId: string) => {
-    if (!allCardsFlipped || hasUserVoted || gameStatus !== "voting") return
-    setSelectedCardId((previous) =>
-      previous === answerId ? undefined : answerId
-    )
-  }
-
-  const handleVote = async () => {
-    if (!selectedCardId || !allCardsFlipped) return
-    await submitUserVoteMutation({
-      answerId: selectedCardId as Id<"answers">,
-      gameId,
-      voterId: userId,
-    })
-    setHasUserVoted(true)
-  }
-
-  const handleSubmitCard = async (text: string) => {
-    await submitUserAnswerMutation({
-      gameId,
-      text,
-      authorId: userId,
-    })
-    setHasUserSubmittedCard(true)
-  }
-
-  const handleAdvanceState = async () => {
-    switch (gameStatus) {
-      case "created": {
-        // Start prompting
-        await triggerGeneratePromptMutation({ gameId })
-        break
-      }
-
-      case "responding": {
-        // Move to voting
-        // await triggerGenerateAnswersMutation({ gameId }) // wurde ausgelagert
-        await advanceToVotingMutation({ gameId })
-        break
-      }
-
-      case "voting": {
-        // Resolve game
-
-        await triggerGenerateModelVotesMutation({ gameId }) // das ist nocht ganz sauber, weil eigentlich der use nicht voten muss und man warten muss, bis alle modelle gevoted haben
-        await triggerFinalizeGameMutation({ gameId })
-        break
-      }
-
-      case "resolved": {
-        // Lock game
-        // await triggerFinalizeGameMutation({ gameId })
-        break
-      }
-    }
-  }
-
-  const handleNewGame = async () => {
-    const newGameId = await createGameMutation({
-      playerModels: [],
-      promptModel: "google/gemini-2.5-flash-lite-preview-09-2025",
-      voterModels: [],
-    })
-    await router.navigate({
-      to: "/games/$gameId",
-      params: { gameId: newGameId },
-    })
-  }
-
-  // Can submit card only during responding phase
-  const canSubmitCard = gameStatus === "responding" && !hasUserSubmittedCard
-
-  function getVotingHintMessage(): React.ReactNode {
-    if (!allCardsFlipped) {
-      return (
-        <p className="text-sm text-muted-foreground">
-          Decke alle Karten auf, um abstimmen zu können
-        </p>
-      )
-    }
-
-    if (selectedCardId) {
-      return (
-        <p className="text-sm text-foreground">
-          Karte ausgewählt - klicke auf Abstimmen
-        </p>
-      )
-    }
-
-    return (
-      <p className="text-sm text-muted-foreground">
-        Wähle eine Karte aus, um abzustimmen
-      </p>
-    )
+  const statusLabel: Record<string, string> = {
+    created: "Konfiguration läuft...",
+    prompting: "Prompt wird generiert...",
+    responding: "Antworten werden gesammelt...",
+    voting: "Abstimmung läuft...",
+    resolved: "Spiel beendet",
+    locked: "Spiel beendet",
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 border-b bg-background">
         <div className="flex h-(--header-height) items-center px-4">
           <div className="flex items-center gap-3">
@@ -224,138 +75,130 @@ export default function FusionPrototype({
         </div>
       </header>
 
-      {/* Main Content - with space for sidebar and footer */}
-      <SidebarProvider>
-        <SidebarInset>
-          <div className="p-6">
-            {/* Black Card */}
-            <div className="mb-6">
-              <BlackCard
-                text={prompt?.text}
-                model={prompt?.model}
-                isLoading={gameStatus === "prompting"}
-                showModel={gameStatus !== "created"}
-              />
-            </div>
-
-            {/* Status message when no cards yet */}
-            {gameStatus === "created" && (
-              <div className="flex h-56 items-center justify-center border border-dashed">
-                <p className="text-sm text-muted-foreground">
-                  Klicke auf Prompt generieren um zu starten
-                </p>
-              </div>
-            )}
-
-            {gameStatus === "prompting" && (
-              <div className="flex h-56 items-center justify-center border border-dashed">
-                <p className="text-sm text-muted-foreground">
-                  Prompt wird generiert...
-                </p>
-              </div>
-            )}
-
-            {/* White Cards Grid */}
-            {(gameStatus === "responding" ||
-              gameStatus === "voting" ||
-              gameStatus === "resolved" ||
-              gameStatus === "locked") && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {allAnswers.length === 0
-                  ? // Loading placeholders
-                    Array.from({ length: whiteCardCount }).map((_, i) => (
-                      <WhiteCard
-                        key={`loading-${i}`}
-                        id={`loading-${i}`}
-                        text=""
-                        model=""
-                        isFlipped={false}
-                        isSelected={false}
-                        isLoading
-                        hasVoted={false}
-                        canSelect={false}
-                        onFlip={() => {}}
-                        onSelect={() => {}}
-                      />
-                    ))
-                  : allAnswers.map((answer) => (
-                      <WhiteCard
-                        key={answer._id}
-                        id={answer._id}
-                        text={answer.text}
-                        model={answer.model === userId ? "Du" : answer.model}
-                        isFlipped={flippedCards[answer._id] || false}
-                        isSelected={selectedCardId === answer._id}
-                        isLoading={false}
-                        voteCount={voteCounts.counts[answer._id]}
-                        voterNames={voteCounts.voterNames[answer._id]}
-                        hasVoted={hasUserVoted}
-                        canSelect={
-                          allCardsFlipped &&
-                          gameStatus === "voting" &&
-                          !hasUserVoted
-                        }
-                        onFlip={() => handleFlipCard(answer._id)}
-                        onSelect={() => handleSelectCard(answer._id)}
-                      />
-                    ))}
-              </div>
-            )}
-
-            {/* Voting hint */}
-            {gameStatus === "voting" && !hasUserVoted && (
-              <div className="mt-6 text-center">{getVotingHintMessage()}</div>
-            )}
-
-            {/* Results message */}
-            {(gameStatus === "resolved" || gameStatus === "locked") && (
-              <div className="mt-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Spiel beendet - ELO-Änderungen wurden berechnet
-                </p>
-              </div>
-            )}
+      <div className="flex flex-1">
+        <div className="flex flex-1 flex-col p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {statusLabel[game.status] ?? game.status}
+            </p>
+            <GameStepper status={game.status} />
           </div>
-        </SidebarInset>
-        {/* Side Panel */}
-        <SidePanel
-          // gameStatus={gameStatus}
-          // answers={allAnswers}
-          // votes={votes}
-          // ratings={mockRatings}
-          // eloChanges={
-          //   gameStatus === "resolved" || gameStatus === "locked"
-          //     ? mockEloChanges
-          //     : undefined
-          // }
-          // config={config}
-          // onConfigChange={setConfig}
-          gameId={gameId as Id<"games">}
-        />
-      </SidebarProvider>
 
-      {/* Submit Card Modal */}
-      <SubmitCardModal
-        isOpen={isSubmitModalOpen}
-        onClose={() => setIsSubmitModalOpen(false)}
-        onSubmit={handleSubmitCard}
-        promptText={prompt?.text ?? ""}
-      />
+          <p className="mb-4 text-xs text-muted-foreground">
+            Spieler:{" "}
+            {players.map((p) => p.displayName).join(", ") ||
+              "Noch niemand da — scanne den QR-Code!"}
+          </p>
 
-      {/* Action Footer */}
-      <ActionFooter
-        gameId={gameId}
-        gameStatus={gameStatus}
-        selectedCardId={selectedCardId}
-        allCardsFlipped={allCardsFlipped}
-        hasUserVoted={hasUserVoted}
-        hasUserSubmittedCard={hasUserSubmittedCard}
-        canSubmitCard={canSubmitCard}
-        onSubmitCard={() => setIsSubmitModalOpen(true)}
-        onVote={handleVote}
-        onAdvanceState={handleAdvanceState}
-        onNewGame={handleNewGame}
-      />
+          <p className="mb-1 text-xs text-muted-foreground">
+            Prompt-Modell: {lookupModelName(game.promptModel)}
+          </p>
+
+          <div className="mb-6">
+            <BlackCard
+              text={prompt?.text}
+              model={prompt?.model}
+              isLoading={game.status === "prompting"}
+              showModel={game.status !== "created"}
+            />
+          </div>
+
+          {game.status === "created" && (
+            <div className="flex h-56 flex-col items-center justify-center gap-4 border border-dashed">
+              <p className="text-sm text-muted-foreground">
+                Host konfiguriert das Spiel...
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Öffne die Play-Seite auf deinem Handy, um Host zu werden
+              </p>
+            </div>
+          )}
+          {game.status === "prompting" && (
+            <div className="flex h-56 items-center justify-center border border-dashed">
+              <p className="text-sm text-muted-foreground">
+                Prompt wird generiert...
+              </p>
+            </div>
+          )}
+
+          {(game.status === "responding" ||
+            game.status === "voting" ||
+            game.status === "resolved" ||
+            game.status === "locked") && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {allAnswers.length === 0
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <WhiteCard
+                      key={`loading-${i}`}
+                      id={`loading-${i}`}
+                      text=""
+                      model=""
+                      isFlipped={false}
+                      isSelected={false}
+                      isLoading
+                      hasVoted={false}
+                      canSelect={false}
+                      onFlip={() => {}}
+                      onSelect={() => {}}
+                    />
+                  ))
+                : allAnswers.map((answer) => (
+                    <WhiteCard
+                      key={answer._id}
+                      id={answer._id}
+                      text={answer.text}
+                      model={
+                        answer.model.startsWith("user:")
+                          ? players.find(
+                              (p) => `user:${p.playerId}` === answer.model
+                            )?.displayName ?? answer.model
+                          : lookupModelName(answer.model)
+                      }
+                      isFlipped
+                      isSelected={false}
+                      isLoading={false}
+                      voteCount={voteCounts[answer._id]}
+                      voterNames={voterNames[answer._id]}
+                      hasVoted={false}
+                      canSelect={false}
+                      onFlip={() => {}}
+                      onSelect={() => {}}
+                    />
+                  ))}
+            </div>
+          )}
+
+          {(game.status === "resolved" || game.status === "locked") && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Spiel beendet — ELO-Änderungen wurden berechnet
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Right side: Join panel */}
+        <div className="flex w-56 flex-col items-center justify-center gap-4 border-l p-6">
+          <div className="mb-2 h-36 w-36 bg-muted flex items-center justify-center text-[10px] text-muted-foreground text-center border">
+            QR-CODE
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Scanne den Code mit deinem Handy
+          </p>
+          <Button
+            variant="default"
+            className="w-full gap-2"
+            onClick={() => navigate({ to: "/games/$gameId/play", params: { gameId } })}
+          >
+            <Smartphone className="h-4 w-4" />
+            Jetzt beitreten
+          </Button>
+          <p className="text-center text-[10px] text-muted-foreground">
+            Erster Besucher wird Host<br />
+            und kann das Spiel konfigurieren
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

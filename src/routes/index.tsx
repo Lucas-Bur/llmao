@@ -24,9 +24,12 @@ function App() {
             className="mt-2"
             onClick={async () => {
               const newGameId = await createGameMutation({
+                hostId: "user:current",
                 playerModels: [],
                 promptModel: "openai/gpt-4.1-mini",
                 voterModels: [],
+                language: "de",
+                advanceMode: "all_answered",
               })
               await router.navigate({
                 to: "/games/$gameId",
