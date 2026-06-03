@@ -27,24 +27,11 @@ interface UseGameProgressParams {
   playerId?: string
 }
 
-export function useGameProgress({
-  game,
-  answers,
-  votes,
-  players,
-  llmEvents,
-  playerId,
-}: UseGameProgressParams) {
-  const answeredModelIds = new Set(answers.map((a) => a.model))
-
-  const failedModelIds = new Set(
-    llmEvents
-      .filter((e) => e.stage === "answer" && !e.success)
-      .map((e) => e.model)
-  )
-
-  const votedVoterIds = new Set(votes.map((v) => v.voterId))
-
+function computeVoteCounts(
+  answers: UseGameProgressParams["answers"],
+  votes: UseGameProgressParams["votes"],
+  players: UseGameProgressParams["players"],
+) {
   const voteCounts: Record<string, number> = {}
   const voterNames: Record<string, Array<string>> = {}
   for (const answer of answers) {
@@ -60,17 +47,35 @@ export function useGameProgress({
       : lookupModelName(vote.voterId.replace("model:", ""))
     voterNames[vote.answerId].push(name)
   }
+  return { voteCounts, voterNames }
+}
 
-  const timerDeadline =
-    game.advanceMode === "timer"
-      ? game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null
-        ? game.respondedAt + game.respondTimeLimit * 1000
-        : game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null
-          ? game.votingAt + game.voteTimeLimit * 1000
-          : undefined
-      : undefined
+function computeTimerDeadline(game: UseGameProgressParams["game"]) {
+  if (game.advanceMode !== "timer") return undefined
+  if (game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null) {
+    return game.respondedAt + game.respondTimeLimit * 1000
+  }
+  if (game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null) {
+    return game.votingAt + game.voteTimeLimit * 1000
+  }
+  return undefined
+}
 
-  const respondParticipants: Participant[] = [
+function buildRespondParticipants(
+  game: UseGameProgressParams["game"],
+  answers: UseGameProgressParams["answers"],
+  players: UseGameProgressParams["players"],
+  llmEvents: UseGameProgressParams["llmEvents"],
+  playerId?: string,
+): Participant[] {
+  const answeredModelIds = new Set(answers.map((a) => a.model))
+  const failedModelIds = new Set(
+    llmEvents
+      .filter((e) => e.stage === "answer" && !e.success)
+      .map((e) => e.model)
+  )
+
+  return [
     ...game.playerModels.map((m) => ({
       id: m,
       label: lookupModelName(m),
@@ -83,8 +88,17 @@ export function useGameProgress({
       subtitle: playerId != null && p.playerId === playerId && !answeredModelIds.has(`user:${p.playerId}`) ? "your answer missing" : undefined,
     })),
   ]
+}
 
-  const voteParticipants: Participant[] = [
+function buildVoteParticipants(
+  game: UseGameProgressParams["game"],
+  votes: UseGameProgressParams["votes"],
+  players: UseGameProgressParams["players"],
+  playerId?: string,
+): Participant[] {
+  const votedVoterIds = new Set(votes.map((v) => v.voterId))
+
+  return [
     ...game.voterModels.map((m) => ({
       id: m,
       label: lookupModelName(m),
@@ -97,6 +111,27 @@ export function useGameProgress({
       subtitle: playerId != null && p.playerId === playerId && !votedVoterIds.has(`user:${p.playerId}`) ? "not voted yet" : undefined,
     })),
   ]
+}
+
+export function useGameProgress({
+  game,
+  answers,
+  votes,
+  players,
+  llmEvents,
+  playerId,
+}: UseGameProgressParams) {
+  const { voteCounts, voterNames } = computeVoteCounts(answers, votes, players)
+  const timerDeadline = computeTimerDeadline(game)
+  const respondParticipants = buildRespondParticipants(game, answers, players, llmEvents, playerId)
+  const voteParticipants = buildVoteParticipants(game, votes, players, playerId)
+  const answeredModelIds = new Set(answers.map((a) => a.model))
+  const failedModelIds = new Set(
+    llmEvents
+      .filter((e) => e.stage === "answer" && !e.success)
+      .map((e) => e.model)
+  )
+  const votedVoterIds = new Set(votes.map((v) => v.voterId))
 
   return {
     voteCounts,
