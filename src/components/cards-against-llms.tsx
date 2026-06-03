@@ -1,9 +1,9 @@
+import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
-import { useSuspenseQuery } from "@tanstack/react-query"
-import { Link, useNavigate } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { ChevronRight, Smartphone, Smile } from "lucide-react"
+import { Link, useNavigate } from "@tanstack/react-router"
 
 import { BlackCard } from "./cah/black-card"
 import { GameStepper } from "./cah/game-stepper"
@@ -13,22 +13,57 @@ import { Button } from "@/components/ui/button"
 import { lookupModelName } from "@/constants/models"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
 
+const STATUS_LABEL: Record<string, string> = {
+  created: "Konfiguration läuft...",
+  prompting: "Prompt wird generiert...",
+  responding: "Antworten werden gesammelt...",
+  voting: "Abstimmung läuft...",
+  resolved: "Spiel beendet",
+  locked: "Spiel beendet",
+}
+
+const SHOW_CARDS_STATUSES = new Set([
+  "responding",
+  "voting",
+  "resolved",
+  "locked",
+])
+
 export default function TVDisplay({
   gameId,
 }: Readonly<{ gameId: string }>) {
   const navigate = useNavigate()
-  const { data: gameObject } = useSuspenseQuery(
+  const roomName = useUniqueNameFromId(gameId)
+
+  const { data: gameObject, isLoading } = useQuery(
     convexQuery(api.games.getGame, { gameId: gameId as Id<"games"> })
   )
 
-  if (!gameObject) {
-    return <div className="p-6 text-sm text-muted-foreground">Spiel wird geladen...</div>
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Spiel wird geladen...</p>
+      </div>
+    )
   }
+
+  if (!gameObject) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
+        <p className="text-sm text-muted-foreground">Spiel nicht gefunden</p>
+        <Button onClick={() => navigate({ to: "/games" })}>
+          Zurück zur Übersicht
+        </Button>
+      </div>
+    )
+  }
+
   const game = gameObject.game
   const prompt = gameObject.prompt
   const allAnswers = gameObject.answers ?? []
   const votes = gameObject.votes ?? []
   const players = gameObject.players ?? []
+  const showCards = SHOW_CARDS_STATUSES.has(game.status)
 
   const voteCounts: Record<string, number> = {}
   const voterNames: Record<string, Array<string>> = {}
@@ -40,15 +75,6 @@ export default function TVDisplay({
     voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
     const name = vote.voterId.replace("model:", "")
     voterNames[vote.answerId].push(name)
-  }
-
-  const statusLabel: Record<string, string> = {
-    created: "Konfiguration läuft...",
-    prompting: "Prompt wird generiert...",
-    responding: "Antworten werden gesammelt...",
-    voting: "Abstimmung läuft...",
-    resolved: "Spiel beendet",
-    locked: "Spiel beendet",
   }
 
   return (
@@ -70,7 +96,7 @@ export default function TVDisplay({
               Alle Spiele
             </Link>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">{useUniqueNameFromId(gameId)}</span>
+            <span className="text-sm">{roomName}</span>
           </div>
         </div>
       </header>
@@ -79,7 +105,7 @@ export default function TVDisplay({
         <div className="flex flex-1 flex-col p-6">
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {statusLabel[game.status] ?? game.status}
+              {STATUS_LABEL[game.status] ?? game.status}
             </p>
             <GameStepper status={game.status} />
           </div>
@@ -113,18 +139,8 @@ export default function TVDisplay({
               </p>
             </div>
           )}
-          {game.status === "prompting" && (
-            <div className="flex h-56 items-center justify-center border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                Prompt wird generiert...
-              </p>
-            </div>
-          )}
 
-          {(game.status === "responding" ||
-            game.status === "voting" ||
-            game.status === "resolved" ||
-            game.status === "locked") && (
+          {showCards && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {allAnswers.length === 0
                 ? Array.from({ length: 3 }).map((_, i) => (

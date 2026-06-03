@@ -25,9 +25,14 @@ function App() {
             onClick={async () => {
               const newGameId = await createGameMutation({
                 hostId: "user:current",
-                playerModels: [],
+                playerModels: [
+                  "openai/gpt-4.1-mini",
+                  "google/gemini-2.5-flash",
+                ],
                 promptModel: "openai/gpt-4.1-mini",
-                voterModels: [],
+                voterModels: [
+                  "google/gemini-2.5-flash-lite-preview-09-2025",
+                ],
                 language: "de",
                 advanceMode: "all_answered",
               })

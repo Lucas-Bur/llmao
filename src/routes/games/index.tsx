@@ -3,6 +3,7 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import { ChevronRight, Smile } from "lucide-react"
+import { Suspense } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,8 +50,24 @@ function relativeTime(ts: number): string {
 }
 
 export const Route = createFileRoute("/games/")({
-  component: RouteComponent,
+  component: RouteWithSuspense,
 })
+
+function RouteWithSuspense() {
+  return (
+    <Suspense fallback={<GamesLoading />}>
+      <RouteComponent />
+    </Suspense>
+  )
+}
+
+function GamesLoading() {
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <p className="text-sm text-muted-foreground">Lade Spiele...</p>
+    </div>
+  )
+}
 
 function RouteComponent() {
   const router = useRouter()
@@ -70,9 +87,14 @@ function RouteComponent() {
   const handleCreateGame = async () => {
     const newGameId = await createGameMutation({
       hostId: "user:current",
-      playerModels: [],
-      promptModel: "google/gemini-2.5-flash-lite-preview-09-2025",
-      voterModels: [],
+      playerModels: [
+        "openai/gpt-4.1-mini",
+        "google/gemini-2.5-flash",
+      ],
+      promptModel: "openai/gpt-4.1-mini",
+      voterModels: [
+        "google/gemini-2.5-flash-lite-preview-09-2025",
+      ],
       language: "de",
       advanceMode: "all_answered",
     })

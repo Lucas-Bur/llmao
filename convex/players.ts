@@ -20,6 +20,23 @@ export const joinGame = mutation({
       )
       .unique()
 
+    // Check duplicate display name (case-insensitive, excluding self)
+    const allPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    const duplicateName = allPlayers.find(
+      (p) =>
+        p.playerId !== args.playerId &&
+        p.displayName.toLowerCase() === args.displayName.toLowerCase()
+    )
+    if (duplicateName) {
+      throw new Error(
+        `Name "${args.displayName}" ist bereits vergeben`
+      )
+    }
+
     if (existing) {
       // Update display name on rejoin
       await ctx.db.patch(existing._id, {
@@ -29,11 +46,6 @@ export const joinGame = mutation({
     }
 
     // First player becomes host
-    const allPlayers = await ctx.db
-      .query("players")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect()
-
     const isHost = allPlayers.length === 0
 
     await ctx.db.insert("players", {
@@ -74,6 +86,23 @@ export const setDisplayName = mutation({
       .unique()
 
     if (!existing) throw new Error("Player not found")
+
+    // Check duplicate display name (case-insensitive, excluding self)
+    const allPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    const duplicateName = allPlayers.find(
+      (p) =>
+        p.playerId !== args.playerId &&
+        p.displayName.toLowerCase() === args.displayName.toLowerCase()
+    )
+    if (duplicateName) {
+      throw new Error(
+        `Name "${args.displayName}" ist bereits vergeben`
+      )
+    }
 
     await ctx.db.patch(existing._id, {
       displayName: args.displayName,
