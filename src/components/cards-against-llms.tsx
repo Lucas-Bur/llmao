@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { Smartphone, Timer } from "lucide-react"
+import { Smartphone } from "lucide-react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 
@@ -14,7 +14,9 @@ import { WhiteCard } from "./cah/white-card"
 import { Button } from "@/components/ui/button"
 import { lookupModelName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
+import { useGameProgress } from "@/hooks/use-game-progress"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
+import { CountdownTimer } from "./cah/countdown-timer"
 
 const SHOW_CARDS_STATUSES = new Set([
   "voting",
@@ -100,45 +102,23 @@ export default function TVDisplay({
     }
   }, [game.status, allAnswers])
 
-  // Which models have answered / failed
-  const answeredModelIds = new Set(allAnswers.map((a) => a.model))
-  const failedModelIds = new Set(
-    llmEvents
-      .filter((e) => e.stage === "answer" && !e.success)
-      .map((e) => e.model)
-  )
-
-  // Player submission status during responding
   const expectedAIPlayers = game.playerModels ?? []
-
-  // Vote progress during voting
-  const votedVoterIds = new Set(votes.map((v) => v.voterId))
   const expectedVoters = game.voterModels ?? []
 
-  const voteCounts: Record<string, number> = {}
-  const voterNames: Record<string, Array<string>> = {}
-  for (const answer of allAnswers) {
-    voteCounts[answer._id] = 0
-    voterNames[answer._id] = []
-  }
-  for (const vote of votes) {
-    voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
-    const name = vote.voterId.startsWith("user:")
-      ? players.find(
-          (p) => `user:${p.playerId}` === vote.voterId
-        )?.displayName ?? vote.voterId
-      : lookupModelName(vote.voterId.replace("model:", ""))
-    voterNames[vote.answerId].push(name)
-  }
-
-  const timerDeadline =
-    game.advanceMode === "timer"
-      ? game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null
-        ? game.respondedAt + game.respondTimeLimit * 1000
-        : game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null
-          ? game.votingAt + game.voteTimeLimit * 1000
-          : undefined
-      : undefined
+  const {
+    voteCounts,
+    voterNames,
+    timerDeadline,
+    answeredModelIds,
+    failedModelIds,
+    votedVoterIds,
+  } = useGameProgress({
+    game,
+    answers: allAnswers,
+    votes,
+    players,
+    llmEvents,
+  })
 
   return (
     <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
@@ -314,26 +294,4 @@ export default function TVDisplay({
   )
 }
 
-function CountdownTimer({ deadline }: Readonly<{ deadline: number }>) {
-  const [remaining, setRemaining] = useState(
-    () => Math.max(0, Math.floor((deadline - Date.now()) / 1000))
-  )
 
-  useEffect(() => {
-    if (remaining <= 0) return
-    const interval = setInterval(() => {
-      setRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [deadline, remaining])
-
-  const minutes = Math.floor(remaining / 60)
-  const seconds = remaining % 60
-
-  return (
-    <span className="flex items-center gap-1 font-medium text-foreground">
-      <Timer className="h-3 w-3" />
-      {minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}s`}
-    </span>
-  )
-}

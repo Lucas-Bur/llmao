@@ -3,7 +3,7 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { Pencil, Timer, Users } from "lucide-react"
+import { Pencil, Users } from "lucide-react"
 import { Suspense, useEffect, useMemo, useState } from "react"
 
 import { BlackCard } from "@/components/cah/black-card"
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select"
 import { useUser } from "@/hooks/use-user"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
+import { CountdownTimer } from "@/components/cah/countdown-timer"
+import { useGameProgress } from "@/hooks/use-game-progress"
 import { getPlayerId } from "@/lib/storage"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -115,32 +117,26 @@ function RouteComponent() {
   const game = gameObject.game
   const prompt = gameObject.prompt
   const allAnswers = gameObject.answers ?? []
-  const llmEvents = gameObject.llmEvents ?? []
-  const answeredModelIds = new Set(allAnswers.map((a) => a.model))
   const expectedAIPlayers = game.playerModels ?? []
   const expectedVoters = game.voterModels ?? []
-  const failedModelIds = new Set(
-    llmEvents
-      .filter((e) => e.stage === "answer" && !e.success)
-      .map((e) => e.model)
-  )
-  const votes = gameObject.votes ?? []
-  const votedVoterIds = new Set(votes.map((v) => v.voterId))
-  const voteCounts: Record<string, number> = {}
-  for (const vote of votes) {
-    voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
-  }
+
+  const {
+    voteCounts,
+    voterNames,
+    timerDeadline,
+    answeredModelIds,
+    failedModelIds,
+    votedVoterIds,
+  } = useGameProgress({
+    game,
+    answers: allAnswers,
+    votes: gameObject.votes ?? [],
+    players: allPlayers,
+    llmEvents: gameObject.llmEvents ?? [],
+  })
+
   const currentPlayer = allPlayers.find((p) => p.playerId === playerId)
   const isHost = currentPlayer?.isHost === true
-
-  const timerDeadline =
-    game.advanceMode === "timer"
-      ? game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null
-        ? game.respondedAt + game.respondTimeLimit * 1000
-        : game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null
-          ? game.votingAt + game.voteTimeLimit * 1000
-          : undefined
-      : undefined
 
   // Rejoin on mount if already registered
   useEffect(() => {
@@ -675,15 +671,7 @@ function RouteComponent() {
                 isLoading={false}
                 hasVoted={game.status === "resolved" || game.status === "locked"}
                 voteCount={voteCounts[answer._id] ?? 0}
-                voterNames={votes
-                  .filter((v) => v.answerId === answer._id)
-                  .map((v) =>
-                    v.voterId.startsWith("user:")
-                      ? allPlayers.find(
-                          (p) => `user:${p.playerId}` === v.voterId
-                        )?.displayName ?? v.voterId
-                      : lookupModelName(v.voterId.replace("model:", ""))
-                  )}
+                voterNames={voterNames[answer._id]}
                 canSelect={!hasUserVoted}
                 onFlip={() => {}}
                 onSelect={() => {
@@ -768,34 +756,6 @@ function RouteComponent() {
         </div>
       )}
     </div>
-  )
-}
-
-// ───── Countdown Timer ─────
-
-function CountdownTimer({ deadline }: Readonly<{ deadline: number }>) {
-  const [remaining, setRemaining] = useState(
-    () => Math.max(0, Math.floor((deadline - Date.now()) / 1000))
-  )
-
-  useEffect(() => {
-    if (remaining <= 0) return
-    const interval = setInterval(() => {
-      setRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [deadline, remaining])
-
-  const minutes = Math.floor(remaining / 60)
-  const seconds = remaining % 60
-
-  return (
-    <span className="flex items-center gap-1 text-xs font-medium text-foreground">
-      <Timer className="h-3 w-3" />
-      {minutes > 0
-        ? `${minutes}:${String(seconds).padStart(2, "0")}`
-        : `${seconds}s`}
-    </span>
   )
 }
 
