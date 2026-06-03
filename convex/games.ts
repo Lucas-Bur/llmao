@@ -12,9 +12,11 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
 } from "./_generated/server"
+import type { Doc, Id } from "./_generated/dataModel"
 import { applyMultiPlayerElo } from "./ratings"
-import { assertStatus, PAST_STATUSES } from "./spiel-lifecycle"
+import { assertStatus, PAST_STATUSES } from "./lifecycle"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,6 +147,93 @@ export const tryAdvanceFromResponding = internalMutation({
   },
 })
 
+async function checkAndAdvanceFromResponding(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  game: Doc<"games">
+) {
+  if (game.advanceMode === "manual") return
+
+  const answers = await ctx.db
+    .query("answers")
+    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+    .collect()
+
+  const humanPlayers = await ctx.db
+    .query("players")
+    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+    .collect()
+
+  const answeredModels = new Set(answers.map((a) => a.model))
+  const allAIModelsAnswered = game.playerModels.every((m) =>
+    answeredModels.has(m)
+  )
+  const allHumansAnswered = humanPlayers.every((p) =>
+    answeredModels.has(`user:${p.playerId}`)
+  )
+
+  if (allAIModelsAnswered && allHumansAnswered && answers.length >= 2) {
+    await advanceGameToVoting(ctx, gameId, game)
+  }
+}
+
+async function advanceGameToVoting(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  game: Doc<"games">
+) {
+  const ts = now()
+  await ctx.db.patch("games", gameId, {
+    status: "voting",
+    votingAt: ts,
+    updatedAt: ts,
+  })
+
+  await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
+    gameId,
+  })
+
+  if (game.advanceMode === "timer" && game.voteTimeLimit) {
+    await ctx.scheduler.runAfter(
+      game.voteTimeLimit * 1000,
+      internal.games.autoFinalizeGame,
+      { gameId }
+    )
+  }
+}
+
+async function checkAndAdvanceFromVoting(
+  ctx: MutationCtx,
+  gameId: Id<"games">,
+  game: Doc<"games">
+) {
+  if (game.advanceMode === "manual") return
+
+  const votes = await ctx.db
+    .query("votes")
+    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+    .collect()
+
+  const humanPlayers = await ctx.db
+    .query("players")
+    .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+    .collect()
+
+  const existingVoterIds = new Set(votes.map((v) => v.voterId))
+  const allAIVoted = game.voterModels.every(
+    (m) => existingVoterIds.has(`model:${m}`)
+  )
+  const allHumansVoted = humanPlayers.every((p) =>
+    existingVoterIds.has(`user:${p.playerId}`)
+  )
+
+  if (allAIVoted && allHumansVoted) {
+    await ctx.scheduler.runAfter(0, internal.games.autoFinalizeGame, {
+      gameId,
+    })
+  }
+}
+
 export const submitUserAnswer = mutation({
   args: {
     gameId: v.id("games"),
@@ -175,9 +264,7 @@ export const submitUserAnswer = mutation({
       createdAt: now(),
     })
 
-    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromResponding, {
-      gameId: args.gameId,
-    })
+    await checkAndAdvanceFromResponding(ctx, args.gameId, game)
 
     return { ok: true }
   },
@@ -251,9 +338,7 @@ export const submitUserVote = mutation({
       createdAt: now(),
     })
 
-    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromVoting, {
-      gameId: args.gameId,
-    })
+    await checkAndAdvanceFromVoting(ctx, args.gameId, game)
 
     return { ok: true }
   },
@@ -275,25 +360,7 @@ export const advanceToVoting = mutation({
       throw new Error("Need at least 2 answers before voting")
     }
 
-    const ts = now()
-    await ctx.db.patch("games", args.gameId, {
-      status: "voting",
-      votingAt: ts,
-      updatedAt: ts,
-    })
-
-    // Auto-schedule model votes + finalize
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
-      gameId: args.gameId,
-    })
-
-    if (game.advanceMode === "timer" && game.voteTimeLimit) {
-      await ctx.scheduler.runAfter(
-        game.voteTimeLimit * 1000,
-        internal.games.autoFinalizeGame,
-        { gameId: args.gameId }
-      )
-    }
+    await advanceGameToVoting(ctx, args.gameId, game)
 
     return { ok: true }
   },
@@ -313,24 +380,7 @@ export const autoAdvanceToVoting = internalMutation({
 
     if (answers.length < 2) return
 
-    const ts = now()
-    await ctx.db.patch("games", args.gameId, {
-      status: "voting",
-      votingAt: ts,
-      updatedAt: ts,
-    })
-
-    await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
-      gameId: args.gameId,
-    })
-
-    if (game.advanceMode === "timer" && game.voteTimeLimit) {
-      await ctx.scheduler.runAfter(
-        game.voteTimeLimit * 1000,
-        internal.games.autoFinalizeGame,
-        { gameId: args.gameId }
-      )
-    }
+    await advanceGameToVoting(ctx, args.gameId, game)
   },
 })
 
@@ -669,10 +719,7 @@ export const saveAnswerResult = internalMutation({
 
     await ctx.db.patch("games", args.gameId, { updatedAt: now() })
 
-    // Auto-advance if all AI models have answered
-    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromResponding, {
-      gameId: args.gameId,
-    })
+    await checkAndAdvanceFromResponding(ctx, args.gameId, game)
   },
 })
 
@@ -709,6 +756,9 @@ export const saveModelVote = internalMutation({
     rawResponse: v.string(),
   },
   handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+
     const existing = await ctx.db
       .query("votes")
       .withIndex("by_gameId_voterId", (q) =>
@@ -739,10 +789,7 @@ export const saveModelVote = internalMutation({
       createdAt: now(),
     })
 
-    // Auto-advance if all AI voters have voted
-    await ctx.scheduler.runAfter(0, internal.games.tryAdvanceFromVoting, {
-      gameId: args.gameId,
-    })
+    await checkAndAdvanceFromVoting(ctx, args.gameId, game)
   },
 })
 
