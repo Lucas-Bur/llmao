@@ -118,22 +118,20 @@ function RouteComponent() {
   const game = gameObject.game
   const prompt = gameObject.prompt
   const allAnswers = gameObject.answers ?? []
-  const expectedAIPlayers = game.playerModels ?? []
-  const expectedVoters = game.voterModels ?? []
 
   const {
     voteCounts,
     voterNames,
     timerDeadline,
-    answeredModelIds,
-    failedModelIds,
-    votedVoterIds,
+    respondParticipants,
+    voteParticipants,
   } = useGameProgress({
     game,
     answers: allAnswers,
     votes: gameObject.votes ?? [],
     players: allPlayers,
     llmEvents: gameObject.llmEvents ?? [],
+    playerId,
   })
 
   const currentPlayer = allPlayers.find((p) => p.playerId === playerId)
@@ -520,19 +518,7 @@ function RouteComponent() {
         <div className="space-y-3">
           <PhaseProgress
             label="Answers"
-            participants={[
-              ...expectedAIPlayers.map((m) => ({
-                id: m,
-                label: lookupModelName(m),
-                status: failedModelIds.has(m) ? "failed" as const : answeredModelIds.has(m) ? "done" as const : "pending" as const,
-              })),
-              ...allPlayers.map((p) => ({
-                id: p.playerId,
-                label: p.playerId === playerId ? "you" : p.displayName,
-                status: answeredModelIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
-                subtitle: p.playerId === playerId && !answeredModelIds.has(`user:${p.playerId}`) ? "your answer missing" : undefined,
-              })),
-            ]}
+            participants={respondParticipants}
             timerDeadline={timerDeadline}
           />
 
@@ -589,19 +575,7 @@ function RouteComponent() {
         <div className="space-y-3">
           <PhaseProgress
             label="Votes"
-            participants={[
-              ...expectedVoters.map((m) => ({
-                id: m,
-                label: lookupModelName(m),
-                status: votedVoterIds.has(`model:${m}`) ? "done" as const : "pending" as const,
-              })),
-              ...allPlayers.map((p) => ({
-                id: p.playerId,
-                label: p.playerId === playerId ? "you" : p.displayName,
-                status: votedVoterIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
-                subtitle: p.playerId === playerId && !votedVoterIds.has(`user:${p.playerId}`) ? "not voted yet" : undefined,
-              })),
-            ]}
+            participants={voteParticipants}
             timerDeadline={timerDeadline}
           />
 

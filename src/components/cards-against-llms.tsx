@@ -103,16 +103,12 @@ export default function TVDisplay({
     }
   }, [game.status, allAnswers])
 
-  const expectedAIPlayers = game.playerModels ?? []
-  const expectedVoters = game.voterModels ?? []
-
   const {
     voteCounts,
     voterNames,
     timerDeadline,
-    answeredModelIds,
-    failedModelIds,
-    votedVoterIds,
+    respondParticipants,
+    voteParticipants,
   } = useGameProgress({
     game,
     answers: allAnswers,
@@ -202,18 +198,7 @@ export default function TVDisplay({
             <PhaseProgress
               label="Answers"
               variant="sidebar"
-              participants={[
-                ...expectedAIPlayers.map((m) => ({
-                  id: m,
-                  label: lookupModelName(m),
-                  status: failedModelIds.has(m) ? "failed" as const : answeredModelIds.has(m) ? "done" as const : "pending" as const,
-                })),
-                ...players.map((p) => ({
-                  id: p.playerId,
-                  label: p.displayName,
-                  status: answeredModelIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
-                })),
-              ]}
+              participants={respondParticipants}
               timerDeadline={timerDeadline}
             />
           )}
@@ -222,18 +207,7 @@ export default function TVDisplay({
             <PhaseProgress
               label="Voting"
               variant="sidebar"
-              participants={[
-                ...expectedVoters.map((m) => ({
-                  id: m,
-                  label: lookupModelName(m),
-                  status: votedVoterIds.has(`model:${m}`) ? "done" as const : "pending" as const,
-                })),
-                ...players.map((p) => ({
-                  id: p.playerId,
-                  label: p.displayName,
-                  status: votedVoterIds.has(`user:${p.playerId}`) ? "done" as const : "pending" as const,
-                })),
-              ]}
+              participants={voteParticipants}
               timerDeadline={timerDeadline}
             />
           )}

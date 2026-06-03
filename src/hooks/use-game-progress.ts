@@ -1,5 +1,14 @@
 import { lookupModelName } from "@/constants/models"
 
+type ParticipantStatus = "done" | "pending" | "failed"
+
+type Participant = {
+  id: string
+  label: string
+  status: ParticipantStatus
+  subtitle?: string
+}
+
 interface UseGameProgressParams {
   game: {
     advanceMode?: string | null
@@ -8,11 +17,14 @@ interface UseGameProgressParams {
     respondTimeLimit?: number | null
     votingAt?: number | null
     voteTimeLimit?: number | null
+    playerModels: string[]
+    voterModels: string[]
   }
   answers: Array<{ _id: string; model: string }>
   votes: Array<{ answerId: string; voterId: string }>
   players: Array<{ playerId: string; displayName: string }>
   llmEvents: Array<{ stage: string; success: boolean; model: string }>
+  playerId?: string
 }
 
 export function useGameProgress({
@@ -21,6 +33,7 @@ export function useGameProgress({
   votes,
   players,
   llmEvents,
+  playerId,
 }: UseGameProgressParams) {
   const answeredModelIds = new Set(answers.map((a) => a.model))
 
@@ -57,6 +70,34 @@ export function useGameProgress({
           : undefined
       : undefined
 
+  const respondParticipants: Participant[] = [
+    ...game.playerModels.map((m) => ({
+      id: m,
+      label: lookupModelName(m),
+      status: (failedModelIds.has(m) ? "failed" : answeredModelIds.has(m) ? "done" : "pending") as ParticipantStatus,
+    })),
+    ...players.map((p) => ({
+      id: p.playerId,
+      label: playerId != null && p.playerId === playerId ? "you" : p.displayName,
+      status: (answeredModelIds.has(`user:${p.playerId}`) ? "done" : "pending") as ParticipantStatus,
+      subtitle: playerId != null && p.playerId === playerId && !answeredModelIds.has(`user:${p.playerId}`) ? "your answer missing" : undefined,
+    })),
+  ]
+
+  const voteParticipants: Participant[] = [
+    ...game.voterModels.map((m) => ({
+      id: m,
+      label: lookupModelName(m),
+      status: (votedVoterIds.has(`model:${m}`) ? "done" : "pending") as ParticipantStatus,
+    })),
+    ...players.map((p) => ({
+      id: p.playerId,
+      label: playerId != null && p.playerId === playerId ? "you" : p.displayName,
+      status: (votedVoterIds.has(`user:${p.playerId}`) ? "done" : "pending") as ParticipantStatus,
+      subtitle: playerId != null && p.playerId === playerId && !votedVoterIds.has(`user:${p.playerId}`) ? "not voted yet" : undefined,
+    })),
+  ]
+
   return {
     voteCounts,
     voterNames,
@@ -64,5 +105,7 @@ export function useGameProgress({
     answeredModelIds,
     failedModelIds,
     votedVoterIds,
+    respondParticipants,
+    voteParticipants,
   }
 }
