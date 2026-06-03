@@ -6,17 +6,17 @@ import { resolveDisplayName } from "@/constants/models"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Types & helpers
 // ---------------------------------------------------------------------------
 
-type RankedAnswer = Doc<"answers"> & {
+export type RankedAnswer = Doc<"answers"> & {
   rank: number
   voteCount: number
   voterNames: string[]
   displayName: string
 }
 
-function sortByVotes(
+export function sortByVotes(
   answers: Doc<"answers">[],
   voteCounts: Record<string, number>,
   voterNames: Record<string, string[]>,
@@ -40,7 +40,7 @@ function podiumRevealOrder(count: number): number[] {
   return [...top3, ...rest]
 }
 
-function usePodiumReveal(
+export function usePodiumReveal(
   status: string,
   sortedAnswers: RankedAnswer[],
 ) {
@@ -73,30 +73,20 @@ function usePodiumReveal(
 }
 
 // ---------------------------------------------------------------------------
-// ResultPodium
+// PodiumCards — top 3
 // ---------------------------------------------------------------------------
 
-type Props = {
-  answers: Doc<"answers">[]
-  voteCounts: Record<string, number>
-  voterNames: Record<string, string[]>
-  players: Doc<"players">[]
-  gameStatus: string
-}
-
-export function ResultPodium({
-  answers,
-  voteCounts,
-  voterNames,
-  players,
-  gameStatus,
-}: Props) {
-  const sorted = sortByVotes(answers, voteCounts, voterNames, players)
-  const revealed = usePodiumReveal(gameStatus, sorted)
-  const [first, second, third, ...rest] = sorted
+export function PodiumCards({
+  sorted,
+  revealed,
+}: {
+  sorted: RankedAnswer[]
+  revealed: Set<string>
+}) {
+  const [first, second, third] = sorted
 
   return (
-    <div className="flex min-w-0 flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-6">
       {/* 1st — center stage */}
       <div
         className={cn(
@@ -168,57 +158,69 @@ export function ResultPodium({
           )
         })}
       </div>
+    </div>
+  )
+}
 
-      {/* Rest — auto-scrolling banner */}
-      {rest.length > 0 && (
-        <div className="relative w-full min-w-0 overflow-hidden">
-          <style>{`
-            @keyframes marquee {
-              0% { transform: translateX(0); }
-              100% { transform: translateX(-50%); }
-            }
-          `}</style>
+// ---------------------------------------------------------------------------
+// ResultBanner — auto-scrolling rest cards
+// ---------------------------------------------------------------------------
+
+export function ResultBanner({
+  sorted,
+  revealed,
+}: {
+  sorted: RankedAnswer[]
+  revealed: Set<string>
+}) {
+  const rest = sorted.slice(3)
+  if (rest.length === 0) return null
+
+  return (
+    <div className="relative w-full min-w-0 overflow-hidden">
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+      <div
+        className="flex w-max gap-4"
+        style={{ animation: "marquee 60s linear infinite" }}
+      >
+        {[...rest, ...rest].map((a, i) => (
           <div
-            className="flex w-max gap-4"
+            key={`${a._id}-${i}`}
+            className={cn(
+              "min-w-64 w-72 shrink-0 transition-all duration-500",
+              revealed.has(a._id)
+                ? "translate-y-0 opacity-100"
+                : "translate-y-4 opacity-0",
+            )}
             style={{
-              animation: "marquee 60s linear infinite",
+              transitionDelay:
+                i < rest.length ? `${(i + 3) * 150}ms` : "0ms",
             }}
           >
-            {[...rest, ...rest].map((a, i) => (
-              <div
-                key={`${a._id}-${i}`}
-                className={cn(
-                  "min-w-64 w-72 shrink-0 transition-all duration-500",
-                  revealed.has(a._id)
-                    ? "translate-y-0 opacity-100"
-                    : "translate-y-4 opacity-0",
-                )}
-                style={{
-                  transitionDelay:
-                    i < rest.length ? `${(i + 3) * 150}ms` : "0ms",
-                }}
-              >
-                <div className="mb-1 text-center text-xs font-semibold text-muted-foreground">
-                  #{a.rank}
-                </div>
-                <WhiteCard
-                  id={a._id}
-                  text={a.text}
-                  model={a.displayName}
-                  isFlipped
-                  isSelected={false}
-                  voteCount={a.voteCount}
-                  voterNames={a.voterNames}
-                  hasVoted
-                  canSelect={false}
-                  onFlip={() => {}}
-                  onSelect={() => {}}
-                />
-              </div>
-            ))}
+            <div className="mb-1 text-center text-xs font-semibold text-muted-foreground">
+              #{a.rank}
+            </div>
+            <WhiteCard
+              id={a._id}
+              text={a.text}
+              model={a.displayName}
+              isFlipped
+              isSelected={false}
+              voteCount={a.voteCount}
+              voterNames={a.voterNames}
+              hasVoted
+              canSelect={false}
+              onFlip={() => {}}
+              onSelect={() => {}}
+            />
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   )
 }

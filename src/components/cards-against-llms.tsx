@@ -17,7 +17,12 @@ import { resolveDisplayName } from "@/constants/models"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
 import { useGameProgress } from "@/hooks/use-game-progress"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-import { ResultPodium } from "./cah/result-podium"
+import {
+  sortByVotes,
+  usePodiumReveal,
+  PodiumCards,
+  ResultBanner,
+} from "./cah/result-podium"
 
 
 const SHOW_CARDS_STATUSES = new Set([
@@ -119,83 +124,98 @@ export default function TVDisplay({
   })
 
   const isResolved = game.status === "resolved" || game.status === "locked"
+  const sorted = isResolved ? sortByVotes(allAnswers, voteCounts, voterNames, players) : []
+  const revealed = usePodiumReveal(game.status, sorted)
 
   return (
     <div className="flex min-h-[calc(100svh-var(--header-height))] w-full overflow-x-hidden bg-background">
       <div className="flex min-w-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col p-6">
-          <div className="mb-4">
+          <div className="mb-4 flex justify-center">
             <GameStepper status={game.status} />
           </div>
 
-          <div className="mb-6">
-            <BlackCard
-              text={prompt?.text}
-              model={prompt?.model}
-              isLoading={game.status === "prompting"}
-              showModel={game.status !== "created"}
-            />
-          </div>
-
-          {game.status === "created" && (
-            <div className="flex h-56 flex-col items-center justify-center gap-4 border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                Host is configuring the game...
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Open the play page on your phone to become host
-              </p>
+          {isResolved ? (
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex min-w-0 flex-1 items-center justify-center">
+                <div className="flex w-full max-w-5xl items-stretch justify-center gap-10">
+                  <div className="flex w-64 shrink-0 self-stretch">
+                    <div className="flex w-full flex-col [&>div]:min-h-full [&>div]:h-full">
+                      <BlackCard
+                        text={prompt?.text}
+                        model={prompt?.model}
+                        isLoading={false}
+                        showModel
+                      />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <PodiumCards sorted={sorted} revealed={revealed} />
+                  </div>
+                </div>
+              </div>
+              <ResultBanner sorted={sorted} revealed={revealed} />
             </div>
-          )}
+          ) : (
+            <>
+              <div className="mb-6">
+                <BlackCard
+                  text={prompt?.text}
+                  model={prompt?.model}
+                  isLoading={game.status === "prompting"}
+                  showModel={game.status !== "created"}
+                />
+              </div>
 
-          {showCards && game.status === "voting" && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {allAnswers.length === 0
-                ? Array.from({ length: 3 }).map((_, i) => (
-                    <WhiteCard
-                      key={`loading-${i}`}
-                      id={`loading-${i}`}
-                      text=""
-                      model=""
-                      isFlipped={false}
-                      isSelected={false}
-                      isLoading
-                      hasVoted={false}
-                      canSelect={false}
-                      onFlip={() => {}}
-                      onSelect={() => {}}
-                    />
-                  ))
-                : allAnswers.map((answer) => (
-                    <WhiteCard
-                      key={answer._id}
-                      id={answer._id}
-                      text={answer.text}
-                      model={resolveDisplayName(answer.model, players)}
-                      isFlipped={revealedCardIds.has(answer._id)}
-                      isSelected={false}
-                      isLoading={false}
-                      voteCount={voteCounts[answer._id]}
-                      voterNames={voterNames[answer._id]}
-                      hasVoted={game.status !== "voting"}
-                      canSelect={false}
-                      onFlip={() => {}}
-                      onSelect={() => {}}
-                    />
-                  ))}
-            </div>
-          )}
+              {game.status === "created" && (
+                <div className="flex h-56 flex-col items-center justify-center gap-4 border border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    Host is configuring the game...
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Open the play page on your phone to become host
+                  </p>
+                </div>
+              )}
 
-          {isResolved && (
-            <div className="min-w-0 flex-1">
-              <ResultPodium
-                answers={allAnswers}
-                voteCounts={voteCounts}
-                voterNames={voterNames}
-                players={players}
-                gameStatus={game.status}
-              />
-            </div>
+              {showCards && game.status === "voting" && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {allAnswers.length === 0
+                    ? Array.from({ length: 3 }).map((_, i) => (
+                        <WhiteCard
+                          key={`loading-${i}`}
+                          id={`loading-${i}`}
+                          text=""
+                          model=""
+                          isFlipped={false}
+                          isSelected={false}
+                          isLoading
+                          hasVoted={false}
+                          canSelect={false}
+                          onFlip={() => {}}
+                          onSelect={() => {}}
+                        />
+                      ))
+                    : allAnswers.map((answer) => (
+                        <WhiteCard
+                          key={answer._id}
+                          id={answer._id}
+                          text={answer.text}
+                          model={resolveDisplayName(answer.model, players)}
+                          isFlipped={revealedCardIds.has(answer._id)}
+                          isSelected={false}
+                          isLoading={false}
+                          voteCount={voteCounts[answer._id]}
+                          voterNames={voterNames[answer._id]}
+                          hasVoted={game.status !== "voting"}
+                          canSelect={false}
+                          onFlip={() => {}}
+                          onSelect={() => {}}
+                        />
+                      ))}
+                  </div>
+              )}
+            </>
           )}
 
         </div>
