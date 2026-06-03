@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { Pencil } from "lucide-react"
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 
 import { BlackCard } from "@/components/cah/black-card"
 import { Badge } from "@/components/ui/badge"
@@ -52,6 +52,14 @@ function RouteComponent() {
   const [hasUserVoted, setHasUserVoted] = useState(false)
   const [hasUserSubmittedCard, setHasUserSubmittedCard] = useState(false)
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (game.game.status === "created") {
+      setHasUserSubmittedCard(false)
+      setHasUserVoted(false)
+      setSelectedCardId(undefined)
+    }
+  }, [game.game.status])
 
   const handleJoin = async () => {
     setJoinError(null)

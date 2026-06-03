@@ -198,8 +198,7 @@ export function ResultBanner({
                 : "translate-y-4 opacity-0",
             )}
             style={{
-              transitionDelay:
-                i < rest.length ? `${(i + 3) * 150}ms` : "0ms",
+              transitionDelay: "0ms",
             }}
           >
             <div className="mb-1 text-center text-xs font-semibold text-muted-foreground">
