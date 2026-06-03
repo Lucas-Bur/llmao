@@ -28,12 +28,12 @@ import { useGameProgress } from "@/hooks/use-game-progress"
 import { getPlayerId } from "@/lib/storage"
 
 const STATUS_LABEL: Record<string, string> = {
-  created: "Konfiguration",
-  prompting: "Prompt wird generiert...",
-  responding: "Antworten",
-  voting: "Abstimmung",
-  resolved: "Ergebnis",
-  locked: "Beendet",
+  created: "Configuration",
+  prompting: "Generating prompt...",
+  responding: "Responding",
+  voting: "Voting",
+  resolved: "Result",
+  locked: "Finished",
 }
 
 export const Route = createFileRoute("/games/$gameId/play")({
@@ -45,7 +45,7 @@ function RouteWithSuspense() {
     <Suspense
       fallback={
         <div className="p-6 text-sm text-muted-foreground">
-          Spiel wird geladen...
+          Loading game...
         </div>
       }
     >
@@ -164,7 +164,7 @@ function RouteComponent() {
       setIsEditingName(false)
     } catch (err: unknown) {
       setJoinError(
-        err instanceof Error ? err.message : "Unbekannter Fehler"
+        err instanceof Error ? err.message : "Unknown error"
       )
     }
   }
@@ -181,7 +181,7 @@ function RouteComponent() {
       setIsEditingName(false)
     } catch (err: unknown) {
       setJoinError(
-        err instanceof Error ? err.message : "Unbekannter Fehler"
+        err instanceof Error ? err.message : "Unknown error"
       )
     }
   }
@@ -197,13 +197,13 @@ function RouteComponent() {
     return (
       <div className="mx-auto max-w-sm p-6">
         <h1 className="mb-2 text-lg font-semibold">{roomName}</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          {isEditingName
-            ? "Ändere deinen Namen"
-            : "Gib deinen Namen ein, um mitzuspielen"}
+      <p className="mb-4 text-sm text-muted-foreground">
+        {isEditingName
+          ? "Change your name"
+          : "Enter your name to join"}
         </p>
         <Input
-          placeholder="Dein Name"
+          placeholder="Your name"
           value={displayName}
           onChange={(e) => {
             setDisplayName(e.target.value)
@@ -219,7 +219,7 @@ function RouteComponent() {
           disabled={!displayName.trim() || isJoining}
           onClick={isEditingName ? handleNameChange : handleJoin}
         >
-          {isEditingName ? "Speichern" : "Beitreten"}
+          {isEditingName ? "Save" : "Join"}
         </Button>
       </div>
     )
@@ -240,7 +240,7 @@ function RouteComponent() {
         type="button"
         onClick={() => setIsEditingName(true)}
         className="text-muted-foreground hover:text-foreground"
-        aria-label="Namen ändern"
+        aria-label="Change name"
       >
         <Pencil className="h-3 w-3" />
       </button>
@@ -282,12 +282,12 @@ function RouteComponent() {
         {playerHeader}
         <div className="flex h-48 flex-col items-center justify-center gap-3 border border-dashed">
           <p className="text-sm text-muted-foreground">
-            Warte auf den Host...
+            Waiting for host...
           </p>
           <p className="text-xs text-muted-foreground">
             {allPlayers.find((p) => p.isHost)?.displayName ??
-              "Der Host"}{" "}
-            konfiguriert das Spiel
+              "The host"}{" "}
+            is configuring the game
           </p>
         </div>
         {playerList}
@@ -317,7 +317,7 @@ function RouteComponent() {
             type="button"
             onClick={() => setIsEditingName(true)}
             className="text-muted-foreground hover:text-foreground"
-            aria-label="Namen ändern"
+        aria-label="Change name"
           >
             <Pencil className="h-3 w-3" />
           </button>
@@ -326,11 +326,11 @@ function RouteComponent() {
         {playerList}
 
         <p className="mb-6 text-sm text-muted-foreground">
-          Konfiguriere das Spiel, bevor es losgeht
+          Configure the game before it starts
         </p>
 
         <section className="mb-4">
-          <h2 className="mb-2 text-sm font-medium">Sprache</h2>
+          <h2 className="mb-2 text-sm font-medium">Language</h2>
           <Select
             value={game.language}
             onValueChange={async (v) =>
@@ -351,7 +351,7 @@ function RouteComponent() {
         </section>
 
         <section className="mb-4">
-          <h2 className="mb-2 text-sm font-medium">Prompt-Modell</h2>
+          <h2 className="mb-2 text-sm font-medium">Prompt Model</h2>
           <Select
             value={game.promptModel}
             onValueChange={async (v) =>
@@ -376,7 +376,7 @@ function RouteComponent() {
 
         <section className="mb-4">
           <h2 className="mb-2 text-sm font-medium">
-            KI-Spieler
+            AI Players
           </h2>
           {AVAILABLE_MODELS.map((model) => (
             <div key={model} className="flex items-center gap-2 py-1">
@@ -399,12 +399,12 @@ function RouteComponent() {
             </div>
           ))}
           <p className="mt-1 text-xs text-muted-foreground">
-            + Du kannst als Mensch mitspielen
+            + You can play as a human
           </p>
         </section>
 
         <section className="mb-4">
-          <h2 className="mb-2 text-sm font-medium">KI-Voter</h2>
+          <h2 className="mb-2 text-sm font-medium">AI Voters</h2>
           {AVAILABLE_MODELS.map((model) => (
             <div key={model} className="flex items-center gap-2 py-1">
               <Checkbox
@@ -428,7 +428,7 @@ function RouteComponent() {
         </section>
 
         <section className="mb-6">
-          <h2 className="mb-2 text-sm font-medium">Weiterschalten</h2>
+          <h2 className="mb-2 text-sm font-medium">Advance Mode</h2>
           <Select
             value={game.advanceMode}
             onValueChange={async (v) =>
@@ -443,16 +443,16 @@ function RouteComponent() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all_answered">
-                Sobald alle KIs geantwortet haben
+                When all AIs have responded
               </SelectItem>
-              <SelectItem value="timer">Nach Zeitlimit</SelectItem>
-              <SelectItem value="manual">Manuell (nur Host)</SelectItem>
+              <SelectItem value="timer">After time limit</SelectItem>
+              <SelectItem value="manual">Manual (host only)</SelectItem>
             </SelectContent>
           </Select>
           {game.advanceMode === "timer" && (
             <div className="mt-2">
               <Label className="text-xs text-muted-foreground">
-                Zeitlimit (Sekunden)
+                Time limit (seconds)
               </Label>
               <Input
                 type="number"
@@ -476,7 +476,7 @@ function RouteComponent() {
             await startGameMutation({ gameId: gameId as Id<"games"> })
           }}
         >
-          {isStarting ? "Wird gestartet..." : "Spiel starten"}
+          {isStarting ? "Starting..." : "Start Game"}
         </Button>
       </div>
     )
@@ -510,7 +510,7 @@ function RouteComponent() {
       {/* Promting: waiting */}
       {game.status === "prompting" && (
         <p className="text-sm text-muted-foreground">
-          Der Prompt wird von einem KI-Modell generiert...
+          The prompt is being generated by an AI model...
         </p>
       )}
 
@@ -521,7 +521,7 @@ function RouteComponent() {
           <div className="rounded-none border bg-muted p-3">
             <div className="mb-2 flex items-center gap-3">
               <p className="text-xs font-medium text-muted-foreground">
-                Antworten:{" "}
+                Answers:{" "}
                 {expectedAIPlayers.filter((m) => answeredModelIds.has(m)).length +
                   allPlayers.filter((p) => answeredModelIds.has(`user:${p.playerId}`)).length}
                 /{expectedAIPlayers.length + allPlayers.length}
@@ -539,7 +539,7 @@ function RouteComponent() {
                   >
                     {done ? "✓" : failed ? "✗" : "⟳"}{" "}
                     {lookupModelName(m)}
-                    {failed && " — fehlgeschlagen"}
+                    {failed && " — failed"}
                   </li>
                 )
               })}
@@ -553,8 +553,8 @@ function RouteComponent() {
                     className={done ? "text-green-600" : "text-muted-foreground"}
                   >
                     {done ? "✓" : "⟳"}{" "}
-                    {isMe ? "du" : p.displayName}
-                    {isMe && !done && " (deine Antwort fehlt)"}
+                    {isMe ? "you" : p.displayName}
+                    {isMe && !done && " (your answer missing)"}
                   </li>
                 )
               })}
@@ -577,7 +577,7 @@ function RouteComponent() {
           ) : (
             <div className="rounded-none border bg-muted p-3 text-center">
               <p className="text-sm font-medium text-foreground">
-                Antwort eingereicht!
+                Answer submitted!
               </p>
             </div>
           )}
@@ -586,7 +586,7 @@ function RouteComponent() {
           {isHost && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">
-                Phase überspringen? Das Spiel wird für alle Spieler sofort weitergesetzt, ggf. bevor alle Antworten eingereicht sind.
+                Skip phase? The game will advance for all players immediately, possibly before all answers are submitted.
               </p>
               <Button
                 size="sm"
@@ -602,7 +602,7 @@ function RouteComponent() {
                   }
                 }}
               >
-                Zur Abstimmung →
+                To Voting →
               </Button>
             </div>
           )}
@@ -644,8 +644,8 @@ function RouteComponent() {
                     key={p.playerId}
                     className={voted ? "text-green-600" : "text-muted-foreground"}
                   >
-                    {voted ? "✓" : "⟳"} {isMe ? "du" : p.displayName}
-                    {isMe && !voted && " (noch nicht abgestimmt)"}
+                    {voted ? "✓" : "⟳"}                     {isMe ? "you" : p.displayName}
+                    {isMe && !voted && " (not voted yet)"}
                   </li>
                 )
               })}
@@ -685,7 +685,7 @@ function RouteComponent() {
 
             {!hasUserVoted && !selectedCardId && (
               <p className="text-center text-xs text-muted-foreground">
-                Wähle die lustigste Antwort aus
+                Pick the funniest answer
               </p>
             )}
 
@@ -702,7 +702,7 @@ function RouteComponent() {
                   setHasUserVoted(true)
                 }}
               >
-                {isVoting ? "Wird abgestimmt..." : "Abstimmen"}
+                {isVoting ? "Voting..." : "Vote"}
               </Button>
             )}
           </div>
@@ -711,7 +711,7 @@ function RouteComponent() {
           {isHost && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">
-                Phase überspringen? Das Spiel wird für alle Spieler sofort ausgewertet, ggf. bevor alle abgestimmt haben.
+                Skip phase? The game will be finalized for all players immediately, possibly before everyone has voted.
               </p>
               <Button
                 size="sm"
@@ -722,7 +722,7 @@ function RouteComponent() {
                   })
                 }}
               >
-                Auswerten →
+                Finalize →
               </Button>
             </div>
           )}
@@ -734,10 +734,10 @@ function RouteComponent() {
         <div className="space-y-3">
           <div className="rounded-none border bg-muted p-4 text-center">
             <p className="text-sm font-medium text-foreground">
-              Spiel beendet!
+              Game over!
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Sieh dir die Ergebnisse auf dem großen Bildschirm an.
+              View the results on the big screen.
             </p>
           </div>
           {isHost && (
@@ -750,7 +750,7 @@ function RouteComponent() {
                 })
               }}
             >
-              {isResettingGame ? "Wird zurückgesetzt..." : "Nächste Runde →"}
+              {isResettingGame ? "Resetting..." : "Next Round →"}
             </Button>
           )}
         </div>
@@ -780,7 +780,7 @@ function AnswerInput({
       className="flex gap-2"
     >
       <Input
-        placeholder="Deine Antwort..."
+        placeholder="Your answer..."
         value={text}
         onChange={(e) => setText(e.target.value)}
         disabled={isSubmitting}
@@ -791,7 +791,7 @@ function AnswerInput({
         disabled={!text.trim() || isSubmitting}
         className="rounded-none"
       >
-        {isSubmitting ? "Sende..." : "Senden"}
+        {isSubmitting ? "Sending..." : "Send"}
       </Button>
     </form>
   )

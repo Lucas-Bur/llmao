@@ -44,10 +44,10 @@ export function SubmitCardModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="*:rounded-none sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Eigene Karte einreichen</DialogTitle>
+          <DialogTitle>Submit your card</DialogTitle>
           <DialogDescription>
-            Schreibe deine Antwort auf die schwarze Karte. Du kannst nur eine
-            Karte pro Spiel einreichen.
+            Write your answer to the black card. You can only submit one
+            card per game.
           </DialogDescription>
         </DialogHeader>
 
@@ -61,7 +61,7 @@ export function SubmitCardModal({
 
           {/* User input */}
           <Textarea
-            placeholder="Deine Antwort..."
+            placeholder="Your answer..."
             value={cardText}
             onChange={(event) => setCardText(event.target.value)}
             className="min-h-24 resize-none rounded-none"
@@ -78,14 +78,14 @@ export function SubmitCardModal({
             onClick={handleClose}
             className="rounded-none"
           >
-            Abbrechen
+            Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!cardText.trim()}
             className="rounded-none"
           >
-            Einreichen
+            Submit
           </Button>
         </DialogFooter>
       </DialogContent>

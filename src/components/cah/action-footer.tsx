@@ -35,25 +35,25 @@ function getNextAction(status: GameStatus): {
 } {
   switch (status) {
     case "created": {
-      return { label: "Prompt generieren", icon: "play" }
+      return { label: "Generate Prompt", icon: "play" }
     }
     case "prompting": {
-      return { label: "Warten...", icon: "arrow" }
+      return { label: "Waiting...", icon: "arrow" }
     }
     case "responding": {
-      return { label: "Zum Voting", icon: "arrow" }
+      return { label: "To Voting", icon: "arrow" }
     }
     case "voting": {
-      return { label: "Auswerten", icon: "arrow" }
+      return { label: "Evaluate", icon: "arrow" }
     }
     case "resolved": {
-      return { label: "Neues Spiel", icon: "reset" }
+      return { label: "New Game", icon: "reset" }
     }
     case "locked": {
-      return { label: "Neues Spiel", icon: "reset" }
+      return { label: "New Game", icon: "reset" }
     }
     default: {
-      return { label: "Weiter", icon: "arrow" }
+      return { label: "Next", icon: "arrow" }
     }
   }
 }
@@ -94,12 +94,12 @@ export function ActionFooter({
               className="gap-2 rounded-none"
             >
               <PenLine className="h-4 w-4" />
-              Eigene Karte
+              My Card
             </Button>
           )}
           {canSubmitCard && hasUserSubmittedCard && (
             <span className="text-xs text-muted-foreground">
-              Karte eingereicht
+              Card submitted
             </span>
           )}
         </div>
@@ -120,7 +120,7 @@ export function ActionFooter({
               size="sm"
             >
               <Vote className="h-4 w-4" />
-              Abstimmen
+              Vote
             </Button>
           )}
 
@@ -158,7 +158,7 @@ export function ActionFooter({
                   size="sm"
                 >
                   <Lightbulb className="h-4 w-4" />
-                  Antworten generieren
+                  Generate Answers
                 </Button>
               ) : undefined}
             </>

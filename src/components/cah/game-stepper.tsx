@@ -11,10 +11,10 @@ type GameStepperProps = {
 const STEPS: Array<{ key: GameStatus; label: string }> = [
   { key: "created", label: "Start" },
   { key: "prompting", label: "Prompt" },
-  { key: "responding", label: "Antworten" },
+  { key: "responding", label: "Answers" },
   { key: "voting", label: "Voting" },
-  { key: "resolved", label: "Ergebnis" },
-  { key: "locked", label: "Beendet" },
+  { key: "resolved", label: "Result" },
+  { key: "locked", label: "Finished" },
 ]
 
 const STATUS_ORDER: Array<GameStatus> = [

@@ -34,18 +34,18 @@ export function UserMenu() {
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <User className="h-3.5 w-3.5" />
-          <span>{name || "Gast"}</span>
+          <span>{name || "Guest"}</span>
         </button>
       </DialogTrigger>
       <DialogContent className="rounded-none sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Dein Name</DialogTitle>
+          <DialogTitle>Your Name</DialogTitle>
           <DialogDescription>
-            Der Name wird für alle Spiele verwendet.
+            The name will be used for all games.
           </DialogDescription>
         </DialogHeader>
         <Input
-          placeholder="Dein Name"
+          placeholder="Your name"
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
           className="rounded-none"
@@ -57,14 +57,14 @@ export function UserMenu() {
             onClick={() => setOpen(false)}
             className="rounded-none"
           >
-            Abbrechen
+            Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={!editName.trim()}
             className="rounded-none"
           >
-            Speichern
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>

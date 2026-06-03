@@ -26,8 +26,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "convex/_generated": ["./convex/_generated"],
-      "convex/_generated/*": ["./convex/_generated/*"],
-      "convex/spiel-lifecycle": ["./convex/lifecycle.ts"]
+      "convex/_generated/*": ["./convex/_generated/*"]
     }
   }
 }

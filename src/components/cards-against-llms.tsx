@@ -43,7 +43,7 @@ export default function TVDisplay({
         to="/games"
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
-        Alle Spiele
+        All Games
         <span className="ml-1 text-muted-foreground/50">/ {roomName}</span>
       </Link>
     )
@@ -53,7 +53,7 @@ export default function TVDisplay({
   if (isLoading) {
     return (
       <div className="flex min-h-[calc(100svh-var(--header-height))] items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Spiel wird geladen...</p>
+        <p className="text-sm text-muted-foreground">Loading game...</p>
       </div>
     )
   }
@@ -61,9 +61,9 @@ export default function TVDisplay({
   if (!gameObject) {
     return (
       <div className="flex min-h-[calc(100svh-var(--header-height))] flex-col items-center justify-center gap-4 bg-background">
-        <p className="text-sm text-muted-foreground">Spiel nicht gefunden</p>
+        <p className="text-sm text-muted-foreground">Game not found</p>
         <Button onClick={() => navigate({ to: "/games" })}>
-          Zurück zur Übersicht
+          Back to overview
         </Button>
       </div>
     )
@@ -140,10 +140,10 @@ export default function TVDisplay({
           {game.status === "created" && (
             <div className="flex h-56 flex-col items-center justify-center gap-4 border border-dashed">
               <p className="text-sm text-muted-foreground">
-                Host konfiguriert das Spiel...
+                Host is configuring the game...
               </p>
               <p className="text-xs text-muted-foreground">
-                Öffne die Play-Seite auf deinem Handy, um Host zu werden
+                Open the play page on your phone to become host
               </p>
             </div>
           )}
@@ -199,7 +199,7 @@ export default function TVDisplay({
           {/* Player progress */}
           {game.status === "responding" && (
             <div className="text-xs">
-              <p className="mb-2 font-medium text-foreground">Antworten</p>
+              <p className="mb-2 font-medium text-foreground">Answers</p>
               <div className="space-y-1 text-muted-foreground">
                 {expectedAIPlayers.map((m) => (
                   <div key={m} className="flex justify-between">
@@ -229,7 +229,7 @@ export default function TVDisplay({
 
           {game.status === "voting" && (
             <div className="text-xs">
-              <p className="mb-2 font-medium text-foreground">Abstimmung</p>
+              <p className="mb-2 font-medium text-foreground">Voting</p>
               <div className="space-y-1 text-muted-foreground">
                 {expectedVoters.map((m) => {
                   const voted = votedVoterIds.has(`model:${m}`)
@@ -267,7 +267,7 @@ export default function TVDisplay({
           <div className="flex flex-col items-center gap-3">
             <QRCode url={`${origin}/games/${gameId}/play`} size={160} />
             <p className="text-center text-xs text-muted-foreground">
-              Scanne den Code mit deinem Handy
+              Scan the code with your phone
             </p>
             <Button
               variant="default"
@@ -280,12 +280,12 @@ export default function TVDisplay({
               }
             >
               <Smartphone className="h-4 w-4" />
-              Jetzt beitreten
+              Join now
             </Button>
             <p className="text-center text-[10px] text-muted-foreground">
-              Erster Besucher wird Host
+              First visitor becomes host
               <br />
-              und kann das Spiel konfigurieren
+              and can configure the game
             </p>
           </div>
         </div>

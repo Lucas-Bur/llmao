@@ -16,14 +16,14 @@ import {
 } from "@/components/ui/card"
 import { lookupModelName } from "@/constants/models"
 import { useUniqueNameFromId } from "@/hooks/use-unique-names"
-import { ONGOING_STATUSES, PAST_STATUSES, type SpielStatus } from "convex/spiel-lifecycle"
+import { ONGOING_STATUSES, PAST_STATUSES, type SpielStatus } from "../../../convex/lifecycle"
 
 const STATUS_LABELS: Record<string, string> = {
-  created: "Erstellt",
-  prompting: "Prompt läuft",
-  responding: "Antworten",
-  voting: "Abstimmung",
-  resolved: "Abgeschlossen",
+  created: "Created",
+  prompting: "Prompting",
+  responding: "Responding",
+  voting: "Voting",
+  resolved: "Resolved",
   locked: "Final",
 }
 
@@ -38,13 +38,13 @@ const STATUS_VARIANTS: Record<string, string> = {
 
 function relativeTime(ts: number): string {
   const seconds = Math.floor((Date.now() - ts) / 1000)
-  if (seconds < 60) return "vor einer Minute"
+  if (seconds < 60) return "a minute ago"
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `vor ${minutes} Minuten`
+  if (minutes < 60) return `${minutes} minutes ago`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `vor ${hours} Stunden`
+  if (hours < 24) return `${hours} hours ago`
   const days = Math.floor(hours / 24)
-  return `vor ${days} Tagen`
+  return `${days} days ago`
 }
 
 export const Route = createFileRoute("/games/")({
@@ -62,7 +62,7 @@ function RouteWithSuspense() {
 function GamesLoading() {
   return (
     <div className="p-6">
-      <p className="text-sm text-muted-foreground">Lade Spiele...</p>
+        <p className="text-sm text-muted-foreground">Loading games...</p>
     </div>
   )
 }
@@ -105,18 +105,18 @@ function RouteComponent() {
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Spielübersicht</h1>
-        <Button onClick={handleCreateGame}>Neues Spiel</Button>
+        <h1 className="text-lg font-semibold">Games</h1>
+        <Button onClick={handleCreateGame}>New Game</Button>
       </div>
 
       {/* Ongoing Games */}
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-          Laufende Spiele
+          Ongoing
         </h2>
         {ongoingGames.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Keine laufenden Spiele
+            No ongoing games
           </p>
         ) : (
           <div className="space-y-2">
@@ -130,11 +130,11 @@ function RouteComponent() {
       {/* Past Games */}
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-          Vergangene Spiele
+          Past
         </h2>
         {pastGames.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Keine vergangenen Spiele
+            No past games
           </p>
         ) : (
           <div className="space-y-2">
@@ -180,8 +180,8 @@ function GameCard({
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{game.playerModels.length} KI-Spieler</span>
-          <span>{game.voterModels.length} Voter</span>
+          <span>{game.playerModels.length} AI Players</span>
+          <span>{game.voterModels.length} Voters</span>
           <span>{relativeTime(game.createdAt)}</span>
         </div>
       </CardContent>
@@ -210,7 +210,7 @@ function GameCard({
               })
             }
           >
-            🎮 Spielen
+            🎮 Play
           </Button>
         )}
       </CardFooter>
