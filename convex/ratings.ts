@@ -1,7 +1,50 @@
 import type { MutationCtx } from "./_generated/server"
 
 const DEFAULT_ELO = 1000
-const K = 32
+export const K = 32
+
+export function computeEloChanges(
+  currentElos: number[],
+  votes: number[]
+): Array<{ eloDelta: number; isWin: boolean; isLoss: boolean; isDraw: boolean }> {
+  if (currentElos.length < 2) return []
+
+  const totalVotes = votes.reduce((sum, v) => sum + v, 0)
+  if (totalVotes === 0) {
+    return currentElos.map(() => ({ eloDelta: 0, isWin: false, isLoss: false, isDraw: false }))
+  }
+
+  const n = currentElos.length
+  const actualShares = votes.map((v) => v / totalVotes)
+
+  const rawExpected = currentElos.map((eloA, idxA) => {
+    let sum = 0
+    for (let idxB = 0; idxB < currentElos.length; idxB++) {
+      if (idxA !== idxB) {
+        sum += 1 / (1 + Math.pow(10, (currentElos[idxB] - eloA) / 400))
+      }
+    }
+    return sum / (n - 1)
+  })
+
+  const totalExpected = rawExpected.reduce((a, b) => a + b, 0)
+  const expectedShares = rawExpected.map((e) => e / totalExpected)
+
+  const maxVotes = Math.max(...votes)
+  const topCount = votes.filter((v) => v === maxVotes).length
+
+  return currentElos.map((_, i) => {
+    const diff = actualShares[i] - expectedShares[i]
+    const eloDelta = Math.round(K * diff * (n - 1))
+
+    const isTop = votes[i] === maxVotes
+    const isDraw = topCount > 1 && isTop
+    const isWin = topCount === 1 && isTop
+    const isLoss = !isTop
+
+    return { eloDelta, isWin, isLoss, isDraw }
+  })
+}
 
 type PlayerVoteInput = {
   model: string
@@ -47,46 +90,22 @@ export async function applyMultiPlayerElo(
   const totalVotes = players.reduce((sum, p) => sum + p.votes, 0)
   if (totalVotes === 0) return
 
-  // Fetch current ratings
   const ratings = await Promise.all(
     players.map((p) => getOrCreateRating(ctx, p.model))
   )
 
-  const n = players.length
-  const actualShares = players.map((p) => p.votes / totalVotes)
-
-  // Pairwise expected shares
-  const rawExpected = ratings.map((rA) => {
-    let sum = 0
-    for (const rB of ratings) {
-      if (rA._id !== rB._id) {
-        sum += 1 / (1 + Math.pow(10, (rB.elo - rA.elo) / 400))
-      }
-    }
-    return sum / (n - 1)
-  })
-
-  const totalExpected = rawExpected.reduce((a, b) => a + b, 0)
-  const expectedShares = rawExpected.map((expected) => expected / totalExpected)
-
-  // Determine winner for win/loss/draw tracking
-  const maxVotes = Math.max(...players.map((p) => p.votes))
-  const topCount = players.filter((p) => p.votes === maxVotes).length
+  const changes = computeEloChanges(
+    ratings.map((r) => r.elo),
+    players.map((p) => p.votes)
+  )
 
   const ts = Date.now()
 
-  for (let i = 0; i < n; i++) {
-    const diff = actualShares[i] - expectedShares[i]
-    const eloChange = Math.round(K * diff * (n - 1))
-    const newElo = ratings[i].elo + eloChange
-
-    const isTop = players[i].votes === maxVotes
-    const isDraw = topCount > 1 && isTop
-    const isWin = topCount === 1 && isTop
-    const isLoss = !isTop
+  for (let i = 0; i < players.length; i++) {
+    const { eloDelta, isWin, isLoss, isDraw } = changes[i]
 
     await ctx.db.patch("ratings", ratings[i]._id, {
-      elo: newElo,
+      elo: ratings[i].elo + eloDelta,
       wins: ratings[i].wins + (isWin ? 1 : 0),
       losses: ratings[i].losses + (isLoss ? 1 : 0),
       draws: ratings[i].draws + (isDraw ? 1 : 0),
