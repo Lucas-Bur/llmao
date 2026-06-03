@@ -278,6 +278,20 @@ export const listRecentGames = query({
   },
 })
 
+export const listGamesByStatus = query({
+  args: { statuses: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("games")
+      .withIndex("by_createdAt")
+      .order("desc")
+      .filter((q) =>
+        q.or(...args.statuses.map((s) => q.eq(q.field("status"), s)))
+      )
+      .take(50)
+  },
+})
+
 export const leaderboard = query({
   args: {},
   handler: async (ctx) => {

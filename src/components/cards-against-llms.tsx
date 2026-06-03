@@ -213,7 +213,7 @@ export default function FusionPrototype({
             </Link>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             <Link
-              to="/"
+              to="/games"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               Alle Spiele

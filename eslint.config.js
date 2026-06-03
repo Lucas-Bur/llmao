@@ -102,6 +102,13 @@ export default [
           ],
         },
       ],
+      "unicorn/filename-case": [
+        "error",
+        {
+          cases: { kebabCase: true },
+          ignore: [/^\$.*/],
+        },
+      ],
       "unicorn/prevent-abbreviations": [
         "error",
         {
