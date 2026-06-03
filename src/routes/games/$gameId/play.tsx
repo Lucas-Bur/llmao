@@ -3,8 +3,8 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { Pencil, Users } from "lucide-react"
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Pencil, Timer, Users } from "lucide-react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 
 import { BlackCard } from "@/components/cah/black-card"
 import { WhiteCard } from "@/components/cah/white-card"
@@ -63,7 +63,6 @@ function RouteComponent() {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [hasUserVoted, setHasUserVoted] = useState(false)
   const [hasUserSubmittedCard, setHasUserSubmittedCard] = useState(false)
-  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>()
 
   const { data: gameObject } = useSuspenseQuery(
@@ -95,7 +94,16 @@ function RouteComponent() {
   const { mutateAsync: updateGameMutation } = useMutation({
     mutationFn: useConvexMutation(api.games.updateGame),
   })
-
+  const { mutateAsync: advanceToVotingMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.advanceToVoting),
+  })
+  const { mutateAsync: triggerFinalizeGameMutation } = useMutation({
+    mutationFn: useConvexMutation(api.games.triggerFinalizeGame),
+  })
+  const { mutateAsync: resetGameMutation, isPending: isResettingGame } =
+    useMutation({
+      mutationFn: useConvexMutation(api.games.resetGame),
+    })
   if (!gameObject) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
@@ -106,8 +114,32 @@ function RouteComponent() {
   const game = gameObject.game
   const prompt = gameObject.prompt
   const allAnswers = gameObject.answers ?? []
+  const llmEvents = gameObject.llmEvents ?? []
+  const answeredModelIds = new Set(allAnswers.map((a) => a.model))
+  const expectedAIPlayers = game.playerModels ?? []
+  const expectedVoters = game.voterModels ?? []
+  const failedModelIds = new Set(
+    llmEvents
+      .filter((e) => e.stage === "answer" && !e.success)
+      .map((e) => e.model)
+  )
+  const votes = gameObject.votes ?? []
+  const votedVoterIds = new Set(votes.map((v) => v.voterId))
+  const voteCounts: Record<string, number> = {}
+  for (const vote of votes) {
+    voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
+  }
   const currentPlayer = allPlayers.find((p) => p.playerId === playerId)
-  const isHost = currentPlayer?.isHost === true && game.status === "created"
+  const isHost = currentPlayer?.isHost === true
+
+  const timerDeadline =
+    game.advanceMode === "timer"
+      ? game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null
+        ? game.respondedAt + game.respondTimeLimit * 1000
+        : game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null
+          ? game.votingAt + game.voteTimeLimit * 1000
+          : undefined
+      : undefined
 
   // Rejoin on mount if already registered
   useEffect(() => {
@@ -157,21 +189,10 @@ function RouteComponent() {
     }
   }
 
-  const allCardsFlipped = useMemo(
-    () =>
-      allAnswers.length > 0 && allAnswers.every((a) => flippedCards[a._id]),
-    [allAnswers, flippedCards]
+  const otherAnswers = useMemo(
+    () => allAnswers.filter((a) => a.model !== `user:${playerId}`),
+    [allAnswers, playerId]
   )
-
-  const flipAll = useCallback(() => {
-    setFlippedCards((prev) => {
-      const next = { ...prev }
-      for (const answer of allAnswers) {
-        next[answer._id] = true
-      }
-      return next
-    })
-  }, [allAnswers])
 
   // ───── Name Input / Edit Screen ─────
 
@@ -279,7 +300,7 @@ function RouteComponent() {
 
   // ───── Host Config Screen ─────
 
-  if (isHost) {
+  if (game.status === "created" && isHost) {
     return (
       <div className="mx-auto max-w-md p-6">
         <div className="mb-6 flex items-center justify-between">
@@ -496,49 +517,147 @@ function RouteComponent() {
         </p>
       )}
 
-      {/* Responding: answer form */}
-      {game.status === "responding" && !hasUserSubmittedCard && (
-        <AnswerInput
-          onSubmit={async (text) => {
-            await submitUserAnswerMutation({
-              gameId: gameId as Id<"games">,
-              text,
-              authorId: `user:${playerId}`,
-            })
-            setHasUserSubmittedCard(true)
-          }}
-          isSubmitting={isSubmitting}
-        />
-      )}
-      {game.status === "responding" && hasUserSubmittedCard && (
-        <div className="rounded-none border border-border bg-muted p-4 text-center">
-          <p className="text-sm font-medium text-foreground">
-            Antwort eingereicht!
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Warte auf die anderen Spieler...
-          </p>
+      {/* ───── Responding ───── */}
+      {game.status === "responding" && (
+        <div className="space-y-3">
+          {/* Submission progress */}
+          <div className="rounded-none border bg-muted p-3">
+            <div className="mb-2 flex items-center gap-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Antworten:{" "}
+                {expectedAIPlayers.filter((m) => answeredModelIds.has(m)).length +
+                  allPlayers.filter((p) => answeredModelIds.has(`user:${p.playerId}`)).length}
+                /{expectedAIPlayers.length + allPlayers.length}
+              </p>
+              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
+            </div>
+            <ul className="space-y-1 text-xs">
+              {expectedAIPlayers.map((m) => {
+                const failed = failedModelIds.has(m)
+                const done = answeredModelIds.has(m)
+                return (
+                  <li
+                    key={m}
+                    className={failed ? "text-destructive" : done ? "text-green-600" : "text-muted-foreground"}
+                  >
+                    {done ? "✓" : failed ? "✗" : "⟳"}{" "}
+                    {lookupModelName(m)}
+                    {failed && " — fehlgeschlagen"}
+                  </li>
+                )
+              })}
+              {allPlayers.map((p) => {
+                const model = `user:${p.playerId}`
+                const isMe = p.playerId === playerId
+                const done = answeredModelIds.has(model)
+                return (
+                  <li
+                    key={p.playerId}
+                    className={done ? "text-green-600" : "text-muted-foreground"}
+                  >
+                    {done ? "✓" : "⟳"}{" "}
+                    {isMe ? "du" : p.displayName}
+                    {isMe && !done && " (deine Antwort fehlt)"}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          {/* Answer input or confirmation */}
+          {!hasUserSubmittedCard ? (
+            <AnswerInput
+              onSubmit={async (text) => {
+                await submitUserAnswerMutation({
+                  gameId: gameId as Id<"games">,
+                  text,
+                  authorId: `user:${playerId}`,
+                })
+                setHasUserSubmittedCard(true)
+              }}
+              isSubmitting={isSubmitting}
+            />
+          ) : (
+            <div className="rounded-none border bg-muted p-3 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Antwort eingereicht!
+              </p>
+            </div>
+          )}
+
+          {/* Host controls */}
+          {isHost && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Phase überspringen? Das Spiel wird für alle Spieler sofort weitergesetzt, ggf. bevor alle Antworten eingereicht sind.
+              </p>
+              <Button
+                size="sm"
+                className="w-full rounded-none text-xs"
+                disabled={allAnswers.length < 2}
+                onClick={async () => {
+                  try {
+                    await advanceToVotingMutation({
+                      gameId: gameId as Id<"games">,
+                    })
+                  } catch {
+                    // validation errors shown via toast in future
+                  }
+                }}
+              >
+                Zur Abstimmung →
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Voting: cards */}
-      {game.status === "voting" && !hasUserVoted && (
-        <div className="space-y-2">
-          {/* Flip all button */}
-          {!allCardsFlipped && allAnswers.length > 1 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={flipAll}
-              className="mb-2 w-full rounded-none text-xs"
-            >
-              Alle aufdecken
-            </Button>
-          )}
+      {/* ───── Voting ───── */}
+      {game.status === "voting" && (
+        <div className="space-y-3">
+          {/* Vote progress */}
+          <div className="rounded-none border bg-muted p-3">
+            <div className="mb-2 flex items-center gap-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Votes:{" "}
+                {expectedVoters.filter((m) => votedVoterIds.has(`model:${m}`)).length +
+                  allPlayers.filter((p) => votedVoterIds.has(`user:${p.playerId}`)).length}
+                /{expectedVoters.length + allPlayers.length}
+              </p>
+              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
+            </div>
+            <ul className="space-y-1 text-xs">
+              {expectedVoters.map((m) => {
+                const voted = votedVoterIds.has(`model:${m}`)
+                return (
+                  <li
+                    key={m}
+                    className={voted ? "text-green-600" : "text-muted-foreground"}
+                  >
+                    {voted ? "✓" : "⟳"} {lookupModelName(m)}
+                  </li>
+                )
+              })}
+              {allPlayers.map((p) => {
+                const voterId = `user:${p.playerId}`
+                const isMe = p.playerId === playerId
+                const voted = votedVoterIds.has(voterId)
+                return (
+                  <li
+                    key={p.playerId}
+                    className={voted ? "text-green-600" : "text-muted-foreground"}
+                  >
+                    {voted ? "✓" : "⟳"} {isMe ? "du" : p.displayName}
+                    {isMe && !voted && " (noch nicht abgestimmt)"}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
 
-          {allAnswers.map((answer) => {
-            const isOwnCard = answer.model === `user:${playerId}`
-            return (
+          {/* Card vote UI — all face-up, own card hidden */}
+          <div className="space-y-2">
+            {otherAnswers.map((answer) => (
               <WhiteCard
                 key={answer._id}
                 id={answer._id}
@@ -550,75 +669,132 @@ function RouteComponent() {
                       )?.displayName ?? answer.model
                     : lookupModelName(answer.model)
                 }
-                isFlipped={
-                  isOwnCard ? true : flippedCards[answer._id] || false
-                }
+                isFlipped
                 isSelected={selectedCardId === answer._id}
                 isLoading={false}
-                hasVoted={false}
-                canSelect={allCardsFlipped}
-                onFlip={() =>
-                  setFlippedCards((prev) => ({
-                    ...prev,
-                    [answer._id]: true,
-                  }))
-                }
-                onSelect={() =>
+                hasVoted={game.status === "resolved" || game.status === "locked"}
+                voteCount={voteCounts[answer._id] ?? 0}
+                voterNames={votes
+                  .filter((v) => v.answerId === answer._id)
+                  .map((v) =>
+                    v.voterId.startsWith("user:")
+                      ? allPlayers.find(
+                          (p) => `user:${p.playerId}` === v.voterId
+                        )?.displayName ?? v.voterId
+                      : lookupModelName(v.voterId.replace("model:", ""))
+                  )}
+                canSelect={!hasUserVoted}
+                onFlip={() => {}}
+                onSelect={() => {
+                  if (hasUserVoted) return
                   setSelectedCardId((prev) =>
                     prev === answer._id ? undefined : answer._id
                   )
-                }
+                }}
               />
-            )
-          })}
+            ))}
 
-          {allCardsFlipped && !selectedCardId && (
-            <p className="text-center text-xs text-muted-foreground">
-              Wähle die lustigste Antwort aus
-            </p>
+            {!hasUserVoted && !selectedCardId && (
+              <p className="text-center text-xs text-muted-foreground">
+                Wähle die lustigste Antwort aus
+              </p>
+            )}
+
+            {!hasUserVoted && selectedCardId && (
+              <Button
+                className="mt-4 w-full rounded-none"
+                disabled={isVoting}
+                onClick={async () => {
+                  await submitUserVoteMutation({
+                    gameId: gameId as Id<"games">,
+                    voterId: `user:${playerId}`,
+                    answerId: selectedCardId as Id<"answers">,
+                  })
+                  setHasUserVoted(true)
+                }}
+              >
+                {isVoting ? "Wird abgestimmt..." : "Abstimmen"}
+              </Button>
+            )}
+          </div>
+
+          {/* Host controls */}
+          {isHost && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Phase überspringen? Das Spiel wird für alle Spieler sofort ausgewertet, ggf. bevor alle abgestimmt haben.
+              </p>
+              <Button
+                size="sm"
+                className="w-full rounded-none text-xs"
+                onClick={async () => {
+                  await triggerFinalizeGameMutation({
+                    gameId: gameId as Id<"games">,
+                  })
+                }}
+              >
+                Auswerten →
+              </Button>
+            </div>
           )}
+        </div>
+      )}
 
-          {selectedCardId && (
+      {/* ───── Done ───── */}
+      {(game.status === "resolved" || game.status === "locked") && (
+        <div className="space-y-3">
+          <div className="rounded-none border bg-muted p-4 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Spiel beendet!
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sieh dir die Ergebnisse auf dem großen Bildschirm an.
+            </p>
+          </div>
+          {isHost && (
             <Button
-              className="mt-4 w-full rounded-none"
-              disabled={isVoting}
+              className="w-full rounded-none"
+              disabled={isResettingGame}
               onClick={async () => {
-                await submitUserVoteMutation({
+                await resetGameMutation({
                   gameId: gameId as Id<"games">,
-                  voterId: `user:${playerId}`,
-                  answerId: selectedCardId as Id<"answers">,
                 })
-                setHasUserVoted(true)
               }}
             >
-              {isVoting ? "Wird abgestimmt..." : "Abstimmen"}
+              {isResettingGame ? "Wird zurückgesetzt..." : "Nächste Runde →"}
             </Button>
           )}
         </div>
       )}
-      {game.status === "voting" && hasUserVoted && (
-        <div className="rounded-none border border-border bg-muted p-4 text-center">
-          <p className="text-sm font-medium text-foreground">
-            Abgestimmt!
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Warte auf die Ergebnisse...
-          </p>
-        </div>
-      )}
-
-      {/* Done */}
-      {(game.status === "resolved" || game.status === "locked") && (
-        <div className="rounded-none border border-border bg-muted p-4 text-center">
-          <p className="text-sm font-medium text-foreground">
-            Spiel beendet!
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Sieh dir die Ergebnisse auf dem großen Bildschirm an.
-          </p>
-        </div>
-      )}
     </div>
+  )
+}
+
+// ───── Countdown Timer ─────
+
+function CountdownTimer({ deadline }: Readonly<{ deadline: number }>) {
+  const [remaining, setRemaining] = useState(
+    () => Math.max(0, Math.floor((deadline - Date.now()) / 1000))
+  )
+
+  useEffect(() => {
+    if (remaining <= 0) return
+    const interval = setInterval(() => {
+      setRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [deadline, remaining])
+
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
+
+  return (
+    <span className="flex items-center gap-1 text-xs font-medium text-foreground">
+      <Timer className="h-3 w-3" />
+      {minutes > 0
+        ? `${minutes}:${String(seconds).padStart(2, "0")}`
+        : `${seconds}s`}
+    </span>
   )
 }
 

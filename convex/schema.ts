@@ -30,6 +30,8 @@ export default defineSchema({
 
     promptId: v.optional(v.id("prompts")),
 
+    respondedAt: v.optional(v.number()),
+    votingAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
     resolvedAt: v.optional(v.number()),

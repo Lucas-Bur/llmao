@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query"
 import { convexQuery } from "@convex-dev/react-query"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { ChevronLeft, Smartphone } from "lucide-react"
+import { ChevronLeft, Smartphone, Timer } from "lucide-react"
 import { Link, useNavigate } from "@tanstack/react-router"
+import { useEffect, useState } from "react"
 
 import { BlackCard } from "./cah/black-card"
 import { GameStepper } from "./cah/game-stepper"
@@ -23,7 +24,6 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const SHOW_CARDS_STATUSES = new Set([
-  "responding",
   "voting",
   "resolved",
   "locked",
@@ -63,7 +63,39 @@ export default function TVDisplay({
   const allAnswers = gameObject.answers ?? []
   const votes = gameObject.votes ?? []
   const players = gameObject.players ?? []
+  const llmEvents = gameObject.llmEvents ?? []
   const showCards = SHOW_CARDS_STATUSES.has(game.status)
+
+  // Card visibility: face-down during responding, face-up during voting+
+  const cardsFlipped = game.status !== "responding"
+
+  // Which models have answered / failed
+  const answeredModelIds = new Set(allAnswers.map((a) => a.model))
+  const failedModelIds = new Set(
+    llmEvents
+      .filter((e) => e.stage === "answer" && !e.success)
+      .map((e) => e.model)
+  )
+
+  // Player submission status during responding
+  const expectedAIPlayers = game.playerModels ?? []
+  const submittedAIs = expectedAIPlayers.filter((m) =>
+    answeredModelIds.has(m)
+  )
+  const failedAIs = expectedAIPlayers.filter((m) => failedModelIds.has(m))
+  const humanPlayersWithAnswers = players.filter((p) =>
+    answeredModelIds.has(`user:${p.playerId}`)
+  )
+
+  // Vote progress during voting
+  const votedVoterIds = new Set(votes.map((v) => v.voterId))
+  const expectedVoters = game.voterModels ?? []
+  const votedAIVoters = expectedVoters.filter((m) =>
+    votedVoterIds.has(`model:${m}`)
+  )
+  const humanVotersWhoVoted = players.filter((p) =>
+    votedVoterIds.has(`user:${p.playerId}`)
+  )
 
   const voteCounts: Record<string, number> = {}
   const voterNames: Record<string, Array<string>> = {}
@@ -73,9 +105,22 @@ export default function TVDisplay({
   }
   for (const vote of votes) {
     voteCounts[vote.answerId] = (voteCounts[vote.answerId] || 0) + 1
-    const name = vote.voterId.replace("model:", "")
+    const name = vote.voterId.startsWith("user:")
+      ? players.find(
+          (p) => `user:${p.playerId}` === vote.voterId
+        )?.displayName ?? vote.voterId
+      : lookupModelName(vote.voterId.replace("model:", ""))
     voterNames[vote.answerId].push(name)
   }
+
+  const timerDeadline =
+    game.advanceMode === "timer"
+      ? game.status === "responding" && game.respondedAt != null && game.respondTimeLimit != null
+        ? game.respondedAt + game.respondTimeLimit * 1000
+        : game.status === "voting" && game.votingAt != null && game.voteTimeLimit != null
+          ? game.votingAt + game.voteTimeLimit * 1000
+          : undefined
+      : undefined
 
   return (
     <div className="flex min-h-[calc(100svh-var(--header-height))] bg-background">
@@ -98,11 +143,102 @@ export default function TVDisplay({
             <GameStepper status={game.status} />
           </div>
 
-          <p className="mb-4 text-xs text-muted-foreground">
-            Spieler:{" "}
-            {players.map((p) => p.displayName).join(", ") ||
-              "Noch niemand da — scanne den QR-Code!"}
-          </p>
+          {/* Player list + human players */}
+          <div className="mb-4 text-xs text-muted-foreground">
+            <span>Spieler: </span>
+            {players.length === 0 && expectedAIPlayers.length === 0 ? (
+              <span>Noch niemand da — scanne den QR-Code!</span>
+            ) : (
+              <>
+                {/* AI players */}
+                {expectedAIPlayers.map((m) => (
+                  <span
+                    key={m}
+                    className={
+                      failedModelIds.has(m)
+                        ? "text-destructive"
+                        : answeredModelIds.has(m)
+                          ? "text-green-600"
+                          : undefined
+                    }
+                  >
+                    {lookupModelName(m)}
+                    {answeredModelIds.has(m) ? " ✓" : failedModelIds.has(m) ? " ✗" : " ⟳"}{" "}
+                  </span>
+                ))}
+                {/* Human players */}
+                {players.map((p) => (
+                  <span
+                    key={p.playerId}
+                    className={
+                      answeredModelIds.has(`user:${p.playerId}`)
+                        ? "text-green-600"
+                        : undefined
+                    }
+                  >
+                    {p.displayName}
+                    {answeredModelIds.has(`user:${p.playerId}`)
+                      ? " ✓"
+                      : " ⟳"}{" "}
+                  </span>
+                ))}
+              </>
+            )}
+          </div>
+
+          {game.status === "voting" && (
+            <div className="mb-4 text-xs text-muted-foreground">
+              <span>Voter: </span>
+              {expectedVoters.length === 0 && players.length === 0 ? (
+                <span>—</span>
+              ) : (
+                <>
+                  {expectedVoters.map((m) => {
+                    const voted = votedVoterIds.has(`model:${m}`)
+                    return (
+                      <span key={m} className={voted ? "text-green-600" : undefined}>
+                        {lookupModelName(m)}
+                        {voted ? " ✓" : " ⟳"}{" "}
+                      </span>
+                    )
+                  })}
+                  {players.map((p) => {
+                    const voted = votedVoterIds.has(`user:${p.playerId}`)
+                    return (
+                      <span key={p.playerId} className={voted ? "text-green-600" : undefined}>
+                        {p.displayName}
+                        {voted ? " ✓" : " ⟳"}{" "}
+                      </span>
+                    )
+                  })}
+                </>
+              )}
+            </div>
+          )}
+
+          {(game.status === "responding" || game.status === "voting") && (
+            <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
+              <span>
+                {game.status === "responding" && (
+                  <>
+                    Antworten: {submittedAIs.length + humanPlayersWithAnswers.length}
+                    /{expectedAIPlayers.length + players.length}
+                    {failedAIs.length > 0 && (
+                      <span className="ml-2 text-destructive">
+                        ({failedAIs.length} fehlgeschlagen)
+                      </span>
+                    )}
+                  </>
+                )}
+                {game.status === "voting" && (
+                  <>
+                    Votes: {votedAIVoters.length + humanVotersWhoVoted.length}/{expectedVoters.length + players.length}
+                  </>
+                )}
+              </span>
+              {timerDeadline != null && <CountdownTimer deadline={timerDeadline} />}
+            </div>
+          )}
 
           <p className="mb-1 text-xs text-muted-foreground">
             Prompt-Modell: {lookupModelName(game.promptModel)}
@@ -158,12 +294,12 @@ export default function TVDisplay({
                             )?.displayName ?? answer.model
                           : lookupModelName(answer.model)
                       }
-                      isFlipped
+                      isFlipped={cardsFlipped}
                       isSelected={false}
                       isLoading={false}
                       voteCount={voteCounts[answer._id]}
                       voterNames={voterNames[answer._id]}
-                      hasVoted={false}
+                      hasVoted={game.status !== "voting"}
                       canSelect={false}
                       onFlip={() => {}}
                       onSelect={() => {}}
@@ -175,7 +311,7 @@ export default function TVDisplay({
           {(game.status === "resolved" || game.status === "locked") && (
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Spiel beendet — ELO-Änderungen wurden berechnet
+                Spiel beendet
               </p>
             </div>
           )}
@@ -210,5 +346,29 @@ export default function TVDisplay({
         </div>
       </div>
     </div>
+  )
+}
+
+function CountdownTimer({ deadline }: Readonly<{ deadline: number }>) {
+  const [remaining, setRemaining] = useState(
+    () => Math.max(0, Math.floor((deadline - Date.now()) / 1000))
+  )
+
+  useEffect(() => {
+    if (remaining <= 0) return
+    const interval = setInterval(() => {
+      setRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [deadline, remaining])
+
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
+
+  return (
+    <span className="flex items-center gap-1 font-medium text-foreground">
+      <Timer className="h-3 w-3" />
+      {minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}s`}
+    </span>
   )
 }

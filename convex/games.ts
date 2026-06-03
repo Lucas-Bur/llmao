@@ -115,7 +115,7 @@ export const tryAdvanceFromResponding = internalMutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.advanceMode !== "all_answered") return
+    if (game.advanceMode === "manual") return
     if (game.status !== "responding") return
 
     const answers = await ctx.db
@@ -123,12 +123,20 @@ export const tryAdvanceFromResponding = internalMutation({
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
       .collect()
 
+    const humanPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
     const answeredModels = new Set(answers.map((a) => a.model))
     const allAIModelsAnswered = game.playerModels.every((m) =>
       answeredModels.has(m)
     )
+    const allHumansAnswered = humanPlayers.every((p) =>
+      answeredModels.has(`user:${p.playerId}`)
+    )
 
-    if (allAIModelsAnswered && answers.length >= 2) {
+    if (allAIModelsAnswered && allHumansAnswered && answers.length >= 2) {
       await ctx.scheduler.runAfter(0, internal.games.autoAdvanceToVoting, {
         gameId: args.gameId,
       })
@@ -181,7 +189,7 @@ export const tryAdvanceFromVoting = internalMutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get("games", args.gameId)
     if (!game) throw new Error("Game not found")
-    if (game.advanceMode !== "all_answered") return
+    if (game.advanceMode === "manual") return
     if (game.status !== "voting") return
 
     const votes = await ctx.db
@@ -189,12 +197,20 @@ export const tryAdvanceFromVoting = internalMutation({
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
       .collect()
 
+    const humanPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
     const existingVoterIds = new Set(votes.map((v) => v.voterId))
-    const allVoted = game.voterModels.every(
+    const allAIVoted = game.voterModels.every(
       (m) => existingVoterIds.has(`model:${m}`)
     )
+    const allHumansVoted = humanPlayers.every((p) =>
+      existingVoterIds.has(`user:${p.playerId}`)
+    )
 
-    if (allVoted) {
+    if (allAIVoted && allHumansVoted) {
       await ctx.scheduler.runAfter(0, internal.games.autoFinalizeGame, {
         gameId: args.gameId,
       })
@@ -264,9 +280,11 @@ export const advanceToVoting = mutation({
       throw new Error("Need at least 2 answers before voting")
     }
 
+    const ts = now()
     await ctx.db.patch("games", args.gameId, {
       status: "voting",
-      updatedAt: now(),
+      votingAt: ts,
+      updatedAt: ts,
     })
 
     // Auto-schedule model votes + finalize
@@ -300,9 +318,11 @@ export const autoAdvanceToVoting = internalMutation({
 
     if (answers.length < 2) return
 
+    const ts = now()
     await ctx.db.patch("games", args.gameId, {
       status: "voting",
-      updatedAt: now(),
+      votingAt: ts,
+      updatedAt: ts,
     })
 
     await ctx.scheduler.runAfter(0, internal.orchestrators.generateModelVotes, {
@@ -405,6 +425,55 @@ export const triggerFinalizeGame = mutation({
   },
 })
 
+export const resetGame = mutation({
+  args: { gameId: v.id("games") },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get("games", args.gameId)
+    if (!game) throw new Error("Game not found")
+    if (game.status !== "resolved" && game.status !== "locked") {
+      throw new Error("Can only reset a finished game")
+    }
+
+    const ts = now()
+    await ctx.db.patch("games", args.gameId, {
+      status: "created",
+      promptId: undefined,
+      respondedAt: undefined,
+      votingAt: undefined,
+      resolvedAt: undefined,
+      lockedAt: undefined,
+      updatedAt: ts,
+    })
+
+    // Delete prompts, answers, votes for this game
+    const prompts = await ctx.db
+      .query("prompts")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+    for (const p of prompts) await ctx.db.delete("prompts", p._id)
+
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+    for (const a of answers) await ctx.db.delete("answers", a._id)
+
+    const votes = await ctx.db
+      .query("votes")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+    for (const v of votes) await ctx.db.delete("votes", v._id)
+
+    const llmEvents = await ctx.db
+      .query("llmEvents")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+    for (const e of llmEvents) await ctx.db.delete("llmEvents", e._id)
+
+    return args.gameId
+  },
+})
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -434,7 +503,12 @@ export const getGame = query({
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
       .collect()
 
-    return { game, prompt, answers, votes, players }
+    const llmEvents = await ctx.db
+      .query("llmEvents")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect()
+
+    return { game, prompt, answers, votes, players, llmEvents }
   },
 })
 
@@ -508,10 +582,12 @@ export const savePromptResult = internalMutation({
       createdAt: now(),
     })
 
+    const ts = now()
     await ctx.db.patch("games", args.gameId, {
       status: "responding",
       promptId,
-      updatedAt: now(),
+      respondedAt: ts,
+      updatedAt: ts,
     })
 
     // Auto-schedule answer generation
